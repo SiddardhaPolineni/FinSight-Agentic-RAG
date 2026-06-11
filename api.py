@@ -19,7 +19,7 @@ from fastapi.responses import StreamingResponse
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.messages import HumanMessage
 
-from src import config as cfg
+import config as cfg
 from src.graph import graph
 from src.retriever import load_bm25_index
 from src.schemas import (

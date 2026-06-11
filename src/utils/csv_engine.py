@@ -13,8 +13,8 @@ from typing import Optional
 
 import pandas as pd
 
-from src import config as cfg
-from src.glossary import get_schema_description
+import config as cfg
+from src.utils.glossary import get_schema_description
 
 logger = logging.getLogger(__name__)
 

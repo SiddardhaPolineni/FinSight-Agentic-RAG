@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Project root
-ROOT_DIR   = Path(__file__).parent.parent
+ROOT_DIR   = Path(__file__).parent
 DATA_DIR   = ROOT_DIR / "data"
 SRC_DIR    = ROOT_DIR / "src"
 

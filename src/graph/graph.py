@@ -21,7 +21,7 @@ Topology:
 import logging
 from langgraph.graph import StateGraph, START, END
 
-from src.state import FinSightState
+from src.schemas import FinSightState
 from src.nodes import (
     rephrase_node,
     intent_node,
@@ -65,7 +65,7 @@ def build_graph():
     builder.add_node("sec",         sec_node)
     builder.add_node("chart",       chart_node)
     builder.add_node("csv_hybrid",  csv_node)
-    builder.add_node("rag_hybrid",  rag_node)
+    builder.add_node("rag_hybrid",  sec_node)
     builder.add_node("synthesizer", synthesizer_node)
 
     # Linear entry

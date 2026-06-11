@@ -1,6 +1,8 @@
-# Virtual environment
+# Virtual environment — keep venv outside OneDrive to avoid hardlink errors
+# Recommended: uv venv C:\venvs\finsight
 .venv/
 venv/
+myenv/
 
 # Environment variables — NEVER commit
 .env

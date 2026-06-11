@@ -18,14 +18,14 @@ import pandas as pd
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 
-from src import config as cfg
+import config as cfg
 from src.prompts import (
     REPHRASE_PROMPT, INTENT_PROMPT,
     PANDAS_QUERY_PROMPT, CHART_QUERY_PROMPT, CSV_ANALYST_PROMPT,
-    RAG_ANALYST_PROMPT, CHART_PROMPT, SYNTHESIZER_PROMPT,
+    SEC_ANALYST_PROMPT, CHART_PROMPT, SYNTHESIZER_PROMPT,
 )
-from src.state import FinSightState
-from src.csv_engine import load_dataframes
+from src.schemas import FinSightState
+from src.utils import load_dataframes
 from src.retriever import HybridRetriever
 
 logger = logging.getLogger(__name__)
@@ -334,7 +334,7 @@ def synthesizer_node(state: FinSightState) -> dict:
 
     # If one source is N/A, just forward the available answer
     if csv_result == "N/A" and sec_result != "N/A":
-        return {"answer": rag_result}
+        return {"answer": sec_result}
     if sec_result == "N/A" and csv_result != "N/A":
         answer = state.get("answer") or csv_result
         return {"answer": answer}
@@ -344,9 +344,9 @@ def synthesizer_node(state: FinSightState) -> dict:
         resp = chain.invoke({
             "question":   state["question"],
             "csv_result": csv_result,
-            "rag_result": rag_result,
+            "rag_result": sec_result,
         })
         return {"answer": resp.content.strip()}
     except Exception as e:
         logger.error("Synthesizer failed: %s", e)
-        return {"answer": state.get("rag_answer") or state.get("csv_result") or "Error generating response."}
+        return {"answer": state.get("sec_answer") or state.get("csv_result") or "Error generating response."}

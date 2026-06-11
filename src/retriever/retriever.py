@@ -21,7 +21,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 
-from src import config as cfg
+import config as cfg
 
 logger = logging.getLogger(__name__)
 

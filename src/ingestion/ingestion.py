@@ -14,7 +14,7 @@ What it does:
   7. Saves a BM25 corpus pickle alongside for hybrid keyword search
 
 Run:
-    python src/ingestion.py
+    python -m src.ingestion.ingestion
 """
 
 import logging
@@ -28,7 +28,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone, ServerlessSpec
 
-from src import config as cfg
+import config as cfg
 
 logging.basicConfig(
     level=logging.INFO,
