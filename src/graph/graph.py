@@ -6,16 +6,13 @@ Topology:
   START
     │
     ▼
-  rephrase          ← clean & expand user question
-    │
-    ▼
-  intent            ← classify: csv_query | sec_rag | chart | hybrid
+  analyze           ← rephrase + classify in one LLM call
     │
     ├─ csv_query   ──► csv_node    ──────────────────────► END
-    ├─ sec_rag     ──► rag_node    ──────────────────────► END
+    ├─ sec_rag     ──► sec_node    ──────────────────────► END
     ├─ chart       ──► chart_node  ──────────────────────► END
     └─ hybrid      ──► csv_node ─┐
-                     rag_node  ─┴──► synthesizer_node ──► END
+                     sec_node  ─┴──► synthesizer_node ──► END
 """
 
 import logging
@@ -23,8 +20,7 @@ from langgraph.graph import StateGraph, START, END
 
 from src.schemas import FinSightState
 from src.nodes import (
-    rephrase_node,
-    intent_node,
+    analyze_node,
     csv_node,
     sec_node,
     chart_node,
@@ -37,20 +33,16 @@ logger = logging.getLogger(__name__)
 # ── Routing ───────────────────────────────────────────────────────────────────
 
 def route_intent(state: FinSightState) -> str:
-    intent = state.get("intent", "csv_query")
+    intent = state.get("intent", "sec_rag")
     logger.debug("Routing → %s", intent)
-    if intent == "sec_rag":
-        return "sec"
+    if intent == "csv_query":
+        return "csv"
     if intent == "chart":
         return "chart"
     if intent == "hybrid":
         return "csv_hybrid"
-    return "csv"
+    return "sec"  # sec_rag and any unrecognised value
 
-
-def route_after_csv_hybrid(state: FinSightState) -> str:
-    """After csv_node in hybrid mode, always go to rag_node."""
-    return "rag_hybrid"
 
 
 # ── Graph builder ─────────────────────────────────────────────────────────────
@@ -59,8 +51,7 @@ def build_graph():
     builder = StateGraph(FinSightState)
 
     # Register nodes
-    builder.add_node("rephrase",    rephrase_node)
-    builder.add_node("intent",      intent_node)
+    builder.add_node("analyze",     analyze_node)
     builder.add_node("csv",         csv_node)
     builder.add_node("sec",         sec_node)
     builder.add_node("chart",       chart_node)
@@ -68,13 +59,12 @@ def build_graph():
     builder.add_node("rag_hybrid",  sec_node)
     builder.add_node("synthesizer", synthesizer_node)
 
-    # Linear entry
-    builder.add_edge(START, "rephrase")
-    builder.add_edge("rephrase", "intent")
+    # Entry
+    builder.add_edge(START, "analyze")
 
-    # Branch from intent
+    # Branch from analyze
     builder.add_conditional_edges(
-        "intent",
+        "analyze",
         route_intent,
         {
             "csv":        "csv",

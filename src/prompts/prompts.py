@@ -4,49 +4,36 @@ All prompt templates for FinSight nodes.
 
 from langchain_core.prompts import ChatPromptTemplate
 
-# ── 1. Rephrase ────────────────────────────────────────────────────────────────
-REPHRASE_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a financial query optimizer with access to the recent conversation history.
-
-Your job is to rewrite the user's latest question into a fully self-contained, precise query.
-
-Rules:
-- Resolve follow-up references using the conversation history:
-  e.g. "what about 2023?" → repeat the full prior question for 2023
-  e.g. "compare that with Apple" → include the prior metric/company explicitly
-  e.g. "and Microsoft?" → carry over the metric and year from the prior question
-- Expand tickers: AAPL→Apple, NVDA→Nvidia, MSFT→Microsoft, GOOG/GOOGL/Alphabet→Google
-- Add fiscal year if clearly implied (e.g. "last year" → "FY2024")
-- Include relevant financial terms (revenue, EPS, EBITDA, free cash flow, etc.)
-- If the question is already self-contained, return it with only minor cleanup
-- Return ONLY the rewritten question — no explanation, no preamble
-
-Conversation history (last 3 turns):
-{history}"""),
-    ("human", "Latest question: {question}"),
-])
-
-# ── 2. Intent + entity extraction ─────────────────────────────────────────────
-INTENT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a financial question classifier. Analyze the question and return JSON:
+# ── 1. Analyze — rephrase + intent in one call ────────────────────────────────
+ANALYZE_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are a financial query analyst. Given a user question and recent conversation history, return a single JSON object that both rewrites the question AND classifies its intent.
 
 {{
+  "rephrased_query": "<fully self-contained rewritten question>",
   "intent": "<csv_query|sec_rag|chart|hybrid>",
-  "companies": ["list of company names in lowercase, e.g. apple, nvidia, microsoft, google"],
-  "years": ["list of fiscal years as strings, e.g. 2023, 2024"],
-  "metrics": ["list of financial metric names, e.g. revenue, netIncome, freeCashFlow"],
+  "companies": ["lowercase company names, e.g. apple, nvidia, microsoft, google"],
+  "years": ["fiscal years as strings, e.g. 2023, 2024"],
+  "metrics": ["financial metric names, e.g. revenue, netIncome, freeCashFlow"],
   "statement_type": "<income_statement|balance_sheet|cash_flow|null>",
   "chart_type": "<bar|line|pie|null>"
 }}
 
+Rules for rephrased_query:
+- Resolve follow-up references from history: "what about 2023?" → repeat full prior question for 2023
+- Expand tickers: AAPL→Apple, NVDA→Nvidia, MSFT→Microsoft, GOOG/GOOGL/Alphabet→Google
+- Make it fully self-contained — no pronouns or references to prior turns
+
 Intent definitions:
-- csv_query  → question about specific financial figures from balance sheet / income statement / cash flow
-- sec_rag    → question about strategy, risks, business description, management discussion from 10-K filings
-- chart      → user explicitly wants a chart/graph/plot of financial data
-- hybrid     → needs both structured data AND 10-K narrative context
+- csv_query  → specific financial figures from income statement / balance sheet / cash flow
+- sec_rag    → strategy, risks, business description, MD&A from 10-K filings
+- chart      → user explicitly wants a chart or plot
+- hybrid     → needs both structured figures AND 10-K narrative
 
 Supported companies: apple, google, microsoft, nvidia
-Return ONLY the JSON, no markdown fences."""),
+Return ONLY the JSON — no markdown fences, no explanation.
+
+Conversation history (last 3 turns):
+{history}"""),
     ("human", "Question: {question}"),
 ])
 

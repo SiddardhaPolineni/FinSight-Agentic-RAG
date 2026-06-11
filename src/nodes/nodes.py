@@ -21,8 +21,7 @@ from langchain_openai import ChatOpenAI
 
 import config as cfg
 from src.prompts import (
-    REPHRASE_PROMPT,
-    INTENT_PROMPT,
+    ANALYZE_PROMPT,
     PANDAS_QUERY_PROMPT,
     CHART_QUERY_PROMPT,
     CSV_ANALYST_PROMPT,
@@ -59,35 +58,25 @@ def _history_text(messages: list) -> str:
     return "\n".join(lines) if lines else "None"
 
 
-# ── Node 1: Rephrase ──────────────────────────────────────────────────────────
+# ── Node 1: Analyze (rephrase + intent in one LLM call) ──────────────────────
 
-def rephrase_node(state: FinSightState) -> dict:
-    """Rewrite the question into a self-contained query, resolving follow-up references."""
+def analyze_node(state: FinSightState) -> dict:
+    """
+    Single LLM call that rewrites the question for retrieval AND
+    classifies intent + extracts entities simultaneously.
+    Replaces the previous two-node rephrase → intent chain.
+    """
     history_text = _history_text(state.get("messages", []))
     try:
-        resp = (REPHRASE_PROMPT | llm).invoke({
+        resp = (ANALYZE_PROMPT | llm).invoke({
             "question": state["question"],
             "history":  history_text,
         })
-        rephrased = resp.content.strip()
-        logger.info("Rephrased: '%s' → '%s'", state["question"][:60], rephrased[:60])
-        return {"rephrased_query": rephrased}
-    except Exception as e:
-        logger.error("Rephrase failed: %s", e)
-        return {"rephrased_query": state["question"], "error": str(e)}
-
-
-# ── Node 2: Intent classifier ─────────────────────────────────────────────────
-
-def intent_node(state: FinSightState) -> dict:
-    """Classify intent and extract entities."""
-    question = state.get("rephrased_query") or state["question"]
-    try:
-        resp = (INTENT_PROMPT | llm).invoke({"question": question})
-        raw  = resp.content.strip().strip("```json").strip("```").strip()
+        raw    = resp.content.strip().strip("```json").strip("```").strip()
         parsed = json.loads(raw)
 
-        intent         = parsed.get("intent", "csv_query")
+        rephrased      = parsed.get("rephrased_query") or state["question"]
+        intent         = parsed.get("intent", "sec_rag")
         companies      = [c.lower() for c in parsed.get("companies", [])]
         years          = [str(y) for y in parsed.get("years", [])]
         metrics        = parsed.get("metrics", [])
@@ -97,30 +86,32 @@ def intent_node(state: FinSightState) -> dict:
             chart_type = None
 
         if intent not in {"csv_query", "sec_rag", "chart", "hybrid"}:
-            intent = "csv_query"
+            intent = "sec_rag"
 
         logger.info(
-            "Intent: %s | companies: %s | years: %s | statement: %s",
-            intent, companies, years, statement_type,
+            "Analyze: rephrased='%s' | intent=%s | companies=%s | years=%s | statement=%s",
+            rephrased[:60], intent, companies, years, statement_type,
         )
         return {
-            "intent":         intent,
-            "companies":      companies,
-            "years":          years,
-            "metrics":        metrics,
-            "statement_type": statement_type,
-            "chart_type":     chart_type,
+            "rephrased_query": rephrased,
+            "intent":          intent,
+            "companies":       companies,
+            "years":           years,
+            "metrics":         metrics,
+            "statement_type":  statement_type,
+            "chart_type":      chart_type,
         }
     except Exception as e:
-        logger.error("Intent classification failed: %s", e)
+        logger.error("Analyze node failed: %s", e)
         return {
-            "intent":         "csv_query",
-            "companies":      [],
-            "years":          [],
-            "metrics":        [],
-            "statement_type": None,
-            "chart_type":     None,
-            "error":          str(e),
+            "rephrased_query": state["question"],
+            "intent":          "sec_rag",
+            "companies":       [],
+            "years":           [],
+            "metrics":         [],
+            "statement_type":  None,
+            "chart_type":      None,
+            "error":           str(e),
         }
 
 

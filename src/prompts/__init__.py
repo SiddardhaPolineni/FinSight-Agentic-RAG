@@ -1,6 +1,5 @@
 from src.prompts.prompts import (
-    REPHRASE_PROMPT,
-    INTENT_PROMPT,
+    ANALYZE_PROMPT,
     PANDAS_QUERY_PROMPT,
     CHART_QUERY_PROMPT,
     CSV_ANALYST_PROMPT,
