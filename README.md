@@ -7,11 +7,11 @@ An AI-powered financial research system that combines **structured financial dat
 ## Architecture Overview
 
 ```
-┌──────────────┐        ┌──────────────┐        ┌──────────────────────┐
+┌──────────────┐        ┌──────────────┐         ┌──────────────────────┐
 │  Streamlit   │  SSE   │   FastAPI    │  async  │      LangGraph       │
 │     UI       │◄──────►│   Backend    │◄───────►│    Agent Workflow    │
 │  (app.py)    │        │  (api.py)    │         │   (src/graph/)       │
-└──────────────┘        └──────────────┘        └──────────────────────┘
+└──────────────┘        └──────────────┘         └──────────────────────┘
 ```
 
 ---
@@ -22,7 +22,7 @@ An AI-powered financial research system that combines **structured financial dat
 graph TD
     START([User Question]) --> ANALYZE[analyze_node<br/><i>Rephrase + Intent + Entity Extraction</i>]
 
-    ANALYZE -->|csv_query| CSV[csv_node<br/><i>Pandas Query Engine</i>]
+    ANALYZE -->|data_query| CSV[csv_node<br/><i>Pandas Query Engine</i>]
     ANALYZE -->|sec_rag| SEC[sec_node<br/><i>Hybrid BM25 + Pinecone + Cohere Rerank</i>]
     ANALYZE -->|chart| CHART[chart_node<br/><i>Pandas + Plotly Visualization</i>]
     ANALYZE -->|hybrid| CSV_H[csv_hybrid<br/><i>Pandas Query Engine</i>]
@@ -54,62 +54,6 @@ graph TD
 | **sec_node** | Retrieve SEC 10-K filing context | BM25 keyword search + Pinecone semantic search → RRF fusion → Cohere rerank → LLM answer |
 | **chart_node** | Generate interactive charts | Schema retrieval → LLM generates chart spec → Pandas eval → Plotly figure |
 | **synthesizer_node** | Combine CSV + RAG answers | Merges structured data insights with 10-K narrative into a unified response |
-
----
-
-## Data Flow (CSV Query Path)
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant UI as Streamlit
-    participant API as FastAPI
-    participant G as LangGraph
-    participant LLM as GPT-4o-mini
-    participant PC as Pinecone
-    participant DF as CSV DataFrames
-
-    U->>UI: "What was Apple's revenue in 2024?"
-    UI->>API: POST /FinSight/stream (SSE)
-    API->>G: graph.ainvoke(state)
-    G->>LLM: analyze_node (classify intent)
-    LLM-->>G: {intent: csv_query, companies: [apple], years: [2024]}
-    G->>DF: load_dataframes(apple, income_statement, 2024)
-    G->>PC: schema_retriever.get_schema()
-    PC-->>G: column schema context
-    G->>LLM: PANDAS_QUERY_PROMPT (expr + answer_template)
-    LLM-->>G: {expr: "df[...]['revenue'].iloc[0]", answer_template: "Apple's revenue in FY 2024 was ${result}."}
-    G->>G: eval(expr) → 391035000000
-    G->>G: format → "$391.04B"
-    G-->>API: answer: "Apple's revenue in FY 2024 was $391.04B."
-    API-->>UI: SSE tokens (word-by-word)
-    UI-->>U: Streamed response with thinking animation
-```
-
----
-
-## Data Flow (SEC RAG Path)
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant G as LangGraph
-    participant BM25 as BM25 Index
-    participant PC as Pinecone
-    participant CO as Cohere Reranker
-    participant LLM as GPT-4o-mini
-
-    U->>G: "What are NVIDIA's key risk factors?"
-    G->>BM25: keyword search (top 10)
-    G->>PC: semantic search (top 10)
-    BM25-->>G: BM25 results
-    PC-->>G: Semantic results
-    G->>G: Reciprocal Rank Fusion (RRF)
-    G->>CO: rerank(query, fused_docs, top_n=5)
-    CO-->>G: reranked top 5 documents
-    G->>LLM: SEC_ANALYST_PROMPT + context
-    LLM-->>G: Cited answer from 10-K excerpts
-```
 
 ---
 
@@ -297,7 +241,3 @@ FinSight-Agentic-RAG/
 | DELETE | `/FinSight/history/{session_id}` | Clear session history |
 
 ---
-
-## License
-
-MIT
