@@ -11,8 +11,9 @@ Routes:
 import json
 import logging
 import uuid
-from typing import AsyncIterator, Optional
+from typing import Optional
 
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -32,6 +33,26 @@ from src.schemas import (
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
+
+
+# ── Numpy-safe JSON encoder ───────────────────────────────────────────────────
+
+class _SafeEncoder(json.JSONEncoder):
+    """Converts numpy scalars/arrays to native Python so json.dumps never crashes."""
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        return super().default(obj)
+
+
+def _dumps(obj) -> str:
+    return json.dumps(obj, cls=_SafeEncoder)
 
 # ── Session store ─────────────────────────────────────────────────────────────
 _sessions: dict[str, ChatMessageHistory] = {}
@@ -96,18 +117,35 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    import asyncio
+    from src.retriever.schema_retriever import SchemaRetriever
+
     n = load_bm25_index()
     logger.info("FinSight API ready. BM25 docs: %d", n)
 
+    # Pre-warm the schema cache for all 3 statement types.
+    # Each call costs ~1.5 s (embed + Pinecone). Running them concurrently
+    # means startup adds ~1.5 s total instead of 4.5 s, and every subsequent
+    # data query skips the schema fetch entirely (0 ms from cache).
+    _sr = SchemaRetriever()
+    warmup_questions = {
+        "income_statement": "revenue net income gross profit operating income ebitda eps margin",
+        "balance_sheet":    "total assets liabilities equity debt cash goodwill working capital",
+        "cash_flow":        "free cash flow operating cash capex capital expenditure investing financing",
+    }
+
+    async def _warm(stmt: str, q: str):
+        try:
+            await asyncio.to_thread(_sr.get_schema, q, stmt, 10)
+            logger.info("Schema cache warmed: %s", stmt)
+        except Exception as e:
+            logger.warning("Schema warmup failed for %s: %s", stmt, e)
+
+    await asyncio.gather(*[_warm(s, q) for s, q in warmup_questions.items()])
+    logger.info("Schema cache pre-warm complete")
+
 
 # ── Streaming endpoint ────────────────────────────────────────────────────────
-
-async def _sse_stream(answer: str) -> AsyncIterator[str]:
-    """Yield answer word-by-word as SSE data events."""
-    words = answer.split(" ")
-    for i, word in enumerate(words):
-        token = word if i == len(words) - 1 else word + " "
-        yield f"data: {json.dumps({'token': token})}\n\n"
 
 
 @app.post("/FinSight/stream")
@@ -115,7 +153,8 @@ async def stream_chat(req: ChatRequest):
     """
     SSE streaming endpoint.
     Streams the answer token-by-token, then sends a final [DONE] event
-    containing chart_spec and session_id.
+    containing session_id. chart_spec is sent as a separate event to
+    avoid oversized SSE lines that cause chunked-read errors.
     """
     session_id = req.session_id or str(uuid.uuid4())
     history    = _get_history(session_id)
@@ -123,25 +162,64 @@ async def stream_chat(req: ChatRequest):
     logger.info("[%s] Stream: %s", session_id, req.question)
 
     initial_state = _build_initial_state(req.question, history)
-    try:
-        final_state = await graph.ainvoke(initial_state)
-    except Exception as e:
-        logger.error("Graph error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Pipeline error: {e}")
-
-    answer     = final_state.get("answer") or "No answer generated."
-    chart_spec = final_state.get("chart_spec")
-    sources    = [s.model_dump() for s in _build_sources(final_state)]
-
-    history.add_user_message(req.question)
-    history.add_ai_message(answer)
 
     async def event_generator():
-        async for event in _sse_stream(answer):
-            yield event
-        done_payload = json.dumps({
+        # ── Phase 1: run the graph, send keepalive pings every 5 s ──────────
+        import asyncio
+
+        result_holder: dict = {}
+        error_holder:  dict = {}
+
+        async def run_graph():
+            try:
+                result_holder["state"] = await graph.ainvoke(initial_state)
+            except Exception as exc:
+                error_holder["exc"] = exc
+
+        task = asyncio.create_task(run_graph())
+
+        # Send a comment-line keepalive while the graph is running so the
+        # client connection stays alive (httpx/nginx won't close idle streams)
+        while not task.done():
+            yield ": keepalive\n\n"
+            await asyncio.sleep(5)
+
+        await task  # ensure any exception is surfaced
+
+        if "exc" in error_holder:
+            err_msg = f"Pipeline error: {error_holder['exc']}"
+            logger.error(err_msg, exc_info=error_holder["exc"])
+            yield f"data: {_dumps({'token': err_msg})}\n\n"
+            yield f"data: [DONE]{_dumps({'session_id': session_id, 'has_chart': False, 'sources': []})}\n\n"
+            return
+
+        final_state = result_holder["state"]
+        answer      = final_state.get("answer") or "No answer generated."
+        chart_spec  = final_state.get("chart_spec")
+        sources     = [s.model_dump() for s in _build_sources(final_state)]
+
+        history.add_user_message(req.question)
+        history.add_ai_message(answer)
+
+        # ── Phase 2: stream tokens word-by-word ──────────────────────────────
+        words = answer.split(" ")
+        for i, word in enumerate(words):
+            token = word if i == len(words) - 1 else word + " "
+            yield f"data: {_dumps({'token': token})}\n\n"
+
+        # ── Phase 3: send chart_spec as its own chunked events ───────────────
+        if chart_spec:
+            chart_json  = _dumps(chart_spec)
+            chunk_size  = 16 * 1024
+            total_parts = (len(chart_json) + chunk_size - 1) // chunk_size
+            for idx in range(total_parts):
+                part = chart_json[idx * chunk_size : (idx + 1) * chunk_size]
+                yield f"data: {_dumps({'chart_part': part, 'part_idx': idx, 'total_parts': total_parts})}\n\n"
+
+        # ── Phase 4: terminal [DONE] event ────────────────────────────────────
+        done_payload = _dumps({
             "session_id": session_id,
-            "chart_spec": chart_spec,
+            "has_chart":  chart_spec is not None,
             "sources":    sources,
         })
         yield f"data: [DONE]{done_payload}\n\n"

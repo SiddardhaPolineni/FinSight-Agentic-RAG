@@ -8,6 +8,8 @@ Clean chat interface:
 """
 
 import json
+import random
+import time
 import uuid
 
 import httpx
@@ -23,6 +25,75 @@ st.set_page_config(
 )
 
 API_BASE = "http://localhost:8000/FinSight"
+
+# ── Thinking animation CSS ────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@keyframes thinking-pulse {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.35; }
+    100% { opacity: 1; }
+}
+@keyframes dot-bounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40%            { transform: translateY(-6px); }
+}
+.thinking-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+    animation: thinking-pulse 2s ease-in-out infinite;
+}
+.thinking-dots {
+    display: flex;
+    gap: 4px;
+}
+.thinking-dots span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #7c83fd;
+    display: inline-block;
+    animation: dot-bounce 1.2s ease-in-out infinite;
+}
+.thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.30s; }
+.thinking-text {
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 0.92em;
+}
+</style>
+""", unsafe_allow_html=True)
+
+THINKING_MESSAGES = [
+    "Searching financial records",
+    "Analyzing statements",
+    "Crunching the numbers",
+    "Scanning SEC filings",
+    "Synthesizing insights",
+    "Running calculations",
+    "Fetching market data",
+    "Thinking it through",
+    "Consulting the data",
+    "Preparing your answer",
+]
+
+def thinking_html(msg: str) -> str:
+    return (
+        '<div class="thinking-container">'
+        '  <div class="thinking-dots">'
+        '    <span></span><span></span><span></span>'
+        '  </div>'
+        f' <span class="thinking-text">{msg}…</span>'
+        '</div>'
+    )
+
+
+def _escape_dollars(text: str) -> str:
+    """Escape $ signs so Streamlit markdown doesn't render them as LaTeX."""
+    return text.replace("$", "\\$")
 
 # ── Session state ─────────────────────────────────────────────────────────────
 if "session_id"   not in st.session_state:
@@ -84,7 +155,7 @@ st.divider()
 # ── Render existing chat history ──────────────────────────────────────────────
 for msg in st.session_state.chat_history:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        st.markdown(_escape_dollars(msg["content"]))
         if msg.get("chart_spec"):
             st.plotly_chart(
                 go.Figure(msg["chart_spec"]),
@@ -100,26 +171,69 @@ def stream_from_api(question: str, session_id: str):
     Generator that calls the SSE /stream endpoint and yields:
       - str tokens as they arrive
       - a dict {"chart_spec": ..., "session_id": ...} as the final item
+
+    Protocol events:
+      ": keepalive"                          → ignored comment (connection keepalive)
+      data: {"token": "..."}                 → text token
+      data: {"chart_part": "...", ...}       → chunked chart JSON fragment
+      data: [DONE]{...}                      → terminal event
     """
-    with httpx.stream("POST",f"{API_BASE}/stream",json={"question": question, "session_id": session_id},timeout=120.0) as response:
+    chart_parts: dict[int, str] = {}
+    total_chart_parts: int = 0
+
+    with httpx.stream(
+        "POST",
+        f"{API_BASE}/stream",
+        json={"question": question, "session_id": session_id},
+        timeout=httpx.Timeout(connect=10.0, read=180.0, write=10.0, pool=10.0),
+    ) as response:
         response.raise_for_status()
         for line in response.iter_lines():
+            # SSE comment lines (keepalive) — skip silently
+            if line.startswith(":"):
+                continue
             if not line.startswith("data:"):
                 continue
+
             payload = line[len("data:"):].strip()
+
+            # ── Terminal event ────────────────────────────────────────────────
             if payload.startswith("[DONE]"):
-                # Final event — contains chart_spec and session_id
                 meta_json = payload[len("[DONE]"):]
                 try:
-                    yield json.loads(meta_json)
+                    meta = json.loads(meta_json)
                 except Exception:
-                    yield {}
+                    meta = {}
+
+                # Reassemble chart_spec from collected parts
+                chart_spec = None
+                if chart_parts and total_chart_parts:
+                    try:
+                        full_json  = "".join(chart_parts[i] for i in range(total_chart_parts))
+                        chart_spec = json.loads(full_json)
+                    except Exception:
+                        chart_spec = None
+
+                meta["chart_spec"] = chart_spec
+                yield meta
                 return
+
+            # ── Regular data event ────────────────────────────────────────────
             try:
                 chunk = json.loads(payload)
-                yield chunk.get("token", "")
             except Exception:
                 continue
+
+            # Chart chunk
+            if "chart_part" in chunk:
+                idx   = chunk.get("part_idx", 0)
+                total = chunk.get("total_parts", 1)
+                chart_parts[idx]   = chunk["chart_part"]
+                total_chart_parts  = total
+                continue
+
+            # Text token
+            yield chunk.get("token", "")
 
 
 # ── Chat input ────────────────────────────────────────────────────────────────
@@ -140,24 +254,42 @@ if user_input:
         answer_placeholder = st.empty()
         chart_placeholder  = st.empty()
 
-        full_answer = ""
-        chart_spec  = None
+        full_answer          = ""
+        chart_spec           = None
+        first_token_received = False
+        thinking_idx         = random.randint(0, len(THINKING_MESSAGES) - 1)
+        last_cycle_time      = time.time()
+
+        # Show initial thinking animation
+        answer_placeholder.markdown(
+            thinking_html(THINKING_MESSAGES[thinking_idx]),
+            unsafe_allow_html=True,
+        )
 
         try:
             for chunk in stream_from_api(user_input, st.session_state.session_id):
-                if isinstance(chunk, str):
-                    # Token chunk — append and re-render
+                if isinstance(chunk, str) and chunk:
+                    if not first_token_received:
+                        first_token_received = True
                     full_answer += chunk
-                    answer_placeholder.markdown(full_answer + "▌")   # typing cursor
+                    answer_placeholder.markdown(_escape_dollars(full_answer) + "▌")
+                elif isinstance(chunk, str) and not chunk:
+                    # Empty token — cycle thinking message every ~2 seconds
+                    if not first_token_received and (time.time() - last_cycle_time) > 2.0:
+                        thinking_idx = (thinking_idx + 1) % len(THINKING_MESSAGES)
+                        answer_placeholder.markdown(
+                            thinking_html(THINKING_MESSAGES[thinking_idx]),
+                            unsafe_allow_html=True,
+                        )
+                        last_cycle_time = time.time()
                 elif isinstance(chunk, dict):
                     # Final DONE event
                     chart_spec = chunk.get("chart_spec")
-                    # Update session_id if backend rotated it
                     if chunk.get("session_id"):
                         st.session_state.session_id = chunk["session_id"]
 
             # Remove cursor, show final answer
-            answer_placeholder.markdown(full_answer)
+            answer_placeholder.markdown(_escape_dollars(full_answer))
 
             # Render chart if present
             if chart_spec:

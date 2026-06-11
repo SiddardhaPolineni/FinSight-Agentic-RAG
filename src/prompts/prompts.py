@@ -6,56 +6,82 @@ from langchain_core.prompts import ChatPromptTemplate
 
 # ── 1. Analyze — rephrase + intent in one call ────────────────────────────────
 ANALYZE_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a financial query analyst. Given a user question and recent conversation history, return a single JSON object that both rewrites the question AND classifies its intent.
+    ("system", """Financial query classifier. Return JSON only — no fences, no explanation.
 
 {{
-  "rephrased_query": "<fully self-contained rewritten question>",
+  "rephrased_query": "<self-contained rewrite>",
   "intent": "<csv_query|sec_rag|chart|hybrid>",
-  "companies": ["lowercase company names, e.g. apple, nvidia, microsoft, google"],
-  "years": ["fiscal years as strings, e.g. 2023, 2024"],
-  "metrics": ["financial metric names, e.g. revenue, netIncome, freeCashFlow"],
-  "statement_type": "<income_statement|balance_sheet|cash_flow|null>",
+  "companies": ["apple|google|microsoft|nvidia"],
+  "years": ["2021-2025 as strings"],
+  "metrics": ["metric names"],
+  "statement_type": "<income_statement|balance_sheet|cash_flow>",
   "chart_type": "<bar|line|pie|null>"
 }}
 
-Rules for rephrased_query:
-- Resolve follow-up references from history: "what about 2023?" → repeat full prior question for 2023
-- Expand tickers: AAPL→Apple, NVDA→Nvidia, MSFT→Microsoft, GOOG/GOOGL/Alphabet→Google
-- Make it fully self-contained — no pronouns or references to prior turns
+Intent:
+- csv_query  → financial figures from statements
+- sec_rag    → strategy, risks, MD&A from 10-K
+- chart      → user wants a plot/chart
+- hybrid     → needs both figures AND 10-K narrative
 
-Intent definitions:
-- csv_query  → specific financial figures from income statement / balance sheet / cash flow
-- sec_rag    → strategy, risks, business description, MD&A from 10-K filings
-- chart      → user explicitly wants a chart or plot
-- hybrid     → needs both structured figures AND 10-K narrative
+statement_type — infer from metric, NEVER omit:
+- income_statement  → revenue, net income, gross profit, operating income, EBITDA, EPS, margins, R&D
+- balance_sheet     → assets, liabilities, equity, debt, cash, goodwill, working capital
+- cash_flow         → free cash flow, operating cash, capex, investing, financing
 
-Supported companies: apple, google, microsoft, nvidia
-Return ONLY the JSON — no markdown fences, no explanation.
+Tickers: AAPL→apple, NVDA→nvidia, MSFT→microsoft, GOOG/GOOGL/Alphabet→google
 
-Conversation history (last 3 turns):
+IMPORTANT for years:
+- Only include years the user EXPLICITLY mentions (e.g. "in 2024", "from 2022 to 2025")
+- If the user does NOT specify a year, return an EMPTY years array []
+- Do NOT infer or guess years from chat history
+- Queries like "all years", "trend", "over the years" → return []
+
+History:
 {history}"""),
     ("human", "Question: {question}"),
 ])
 
 # ── 3. CSV pandas query builder ────────────────────────────────────────────────
 PANDAS_QUERY_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a pandas expert working with financial data.
-
-You have a DataFrame called `df`. Here is its schema with real sample values:
+    ("system", """You are a pandas + financial analyst expert. DataFrame `df` schema:
 
 {column_context}
 
-Write a single pandas expression that computes and returns the answer to the question.
+Return a JSON object with exactly these keys:
+{{
+  "expr": "<pandas expression that computes the answer>",
+  "answer_template": "<natural-language sentence with {{result}} as placeholder>"
+}}
 
-Rules:
-- Use ONLY column names shown above — they are the exact names in `df`
-- Always filter with a combined boolean mask:
-    df[(df["company"].str.lower() == "apple") & (df["fiscalYear"] == "2024")]["revenue"].iloc[0]
-- Never chain .loc[] on an already-filtered slice — causes index misalignment
-- For comparisons or trends, return a small DataFrame or Series
-- Do NOT use print(), imports, or plt
-- Return ONLY the pandas expression — no explanation, no code fences"""),
-    ("human", "Question: {question}\n\nPandas expression:"),
+Rules for expr:
+- Use ONLY column names from the schema
+- Filter with a combined boolean mask:
+    df[(df["company"] == "Microsoft") & (df["fiscalYear"] == "2024")]["revenue"].iloc[0]
+- For derived metrics compute inline:
+    net profit margin  → netIncome / revenue
+    operating margin   → operatingIncome / revenue
+    gross margin       → grossProfit / revenue
+    ROA                → netIncome / totalAssets (need balance_sheet)
+    debt-to-equity     → totalDebt / totalStockholdersEquity
+- For trends/comparisons return a small DataFrame or Series
+- No imports, no print
+
+Rules for answer_template:
+- Write a clear 1–3 sentence answer as if the {{result}} value is known
+- Use {{result}} where the computed value goes
+- Include company names, fiscal years, and metric context
+- Format hints: if monetary use "$" prefix, if ratio/margin use "%" suffix
+
+Examples:
+  Question: "What was Apple's revenue in 2024?"
+  → {{"expr": "df[(df[\\"company\\"] == \\"Apple\\") & (df[\\"fiscalYear\\"] == \\"2024\\")]['revenue'].iloc[0]", "answer_template": "Apple's revenue in fiscal year 2024 was ${{result}}."}}
+
+  Question: "Compare Google and Microsoft net income for 2023"
+  → {{"expr": "df[df[\\"fiscalYear\\"] == \\"2023\\"][[\\"company\\",\\"fiscalYear\\",\\"netIncome\\"]]", "answer_template": "Here is the net income comparison for FY 2023:\\n{{result}}"}}
+
+Return ONLY the JSON — no markdown fences."""),
+    ("human", "Question: {question}\n\nJSON:"),
 ])
 
 # ── 3b. Chart pandas query + axis spec ─────────────────────────────────────────
@@ -115,10 +141,9 @@ Present this as a natural-language answer:"""),
 SEC_ANALYST_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are FinSight, a financial analyst specializing in SEC 10-K filings.
 Answer ONLY using the provided document excerpts.
-- Reference the source (company name, year) inline
+- Reference the source (company name, year) inline when relevant
 - Be precise about risks, strategies, and business segments
-- Do NOT fabricate facts not present in the context
-- End with: "Source: [list the documents used]" """),
+- Do NOT fabricate facts not present in the context"""),
     ("human", """Context Documents:
 {context}
 

@@ -7,6 +7,9 @@ based on the user's question.
 Each record in the metadata namespace represents one financial column
 with its description, aliases, unit and example values.
 
+Results are cached in-process by (question_embedding_bucket, statement_type)
+to avoid redundant Pinecone + embedding roundtrips on repeated/similar queries.
+
 Usage:
     retriever = SchemaRetriever()
     schema_context = retriever.get_schema(
@@ -18,6 +21,7 @@ Usage:
 
 import json
 import logging
+from functools import lru_cache
 
 from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone
@@ -39,6 +43,8 @@ class SchemaRetriever:
         )
         pc = Pinecone(api_key=cfg.PINECONE_API_KEY)
         self._index = pc.Index(cfg.PINECONE_INDEX)
+        # In-process schema cache: (statement_type, question) → formatted string
+        self._schema_cache: dict[tuple[str, str], str] = {}
         logger.info("SchemaRetriever ready")
 
     def get_schema(
@@ -51,6 +57,9 @@ class SchemaRetriever:
         Retrieve the most relevant column definitions for the question
         and format them as a schema context string for the LLM.
 
+        Results are cached: identical (statement_type, question) pairs skip
+        the embedding + Pinecone roundtrip entirely.
+
         Args:
             question:       user question to match against column descriptions/aliases
             statement_type: "income_statement" | "balance_sheet" | "cash_flow"
@@ -59,6 +68,11 @@ class SchemaRetriever:
         Returns:
             Formatted schema string ready to inject into the LLM prompt.
         """
+        cache_key = (statement_type, question.strip().lower())
+        if cache_key in self._schema_cache:
+            logger.debug("SchemaRetriever cache hit: %s / %s", statement_type, question[:50])
+            return self._schema_cache[cache_key]
+
         query_vector = self._embedder.embed_query(question)
 
         results = self._index.query(
@@ -71,7 +85,9 @@ class SchemaRetriever:
 
         if not results.matches:
             logger.warning("No schema records found for statement_type=%s", statement_type)
-            return f"No schema found for statement_type={statement_type}"
+            result = f"No schema found for statement_type={statement_type}"
+            self._schema_cache[cache_key] = result
+            return result
 
         index_cols_text = (
             "Index columns (always available for filtering):\n"
@@ -100,10 +116,12 @@ class SchemaRetriever:
                 f"    Aliases     : [{alias_str}]"
             )
 
-        return (
+        result = (
             f"Statement type: {statement_type}\n\n"
             f"{index_cols_text}\n"
             f"Relevant financial columns (ranked by relevance to query):\n"
             + "\n\n".join(col_lines)
         )
+        self._schema_cache[cache_key] = result
+        return result
 
