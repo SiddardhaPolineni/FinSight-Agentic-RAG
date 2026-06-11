@@ -58,76 +58,8 @@ hybrid_retriever = HybridRetriever()
 schema_retriever = SchemaRetriever()
 
 
-def _format_csv_answer(question: str, result) -> str:
-    """
-    Format a pandas query result as a readable answer without an LLM call.
-    Saves ~1 s per csv_query by doing number formatting in pure Python.
-    """
-    import numpy as np
-
-    q = question.lower()
-
-    def fmt_number(v) -> str:
-        """Format a single numeric value with units."""
-        try:
-            f = float(v)
-        except (TypeError, ValueError):
-            return str(v)
-        # Percentages — margin, ratio, growth
-        if any(kw in q for kw in ["margin", "ratio", "rate", "growth", "return", "yield", "percentage", "%"]):
-            return f"{f * 100:.2f}%" if abs(f) <= 10 else f"{f:.2f}%"
-        # EPS / per-share figures
-        if any(kw in q for kw in ["eps", "earnings per share", "per share"]):
-            return f"${f:.2f}"
-        # Large monetary values
-        abs_f = abs(f)
-        if abs_f >= 1e12:
-            return f"${f/1e12:.2f}T"
-        if abs_f >= 1e9:
-            return f"${f/1e9:.2f}B"
-        if abs_f >= 1e6:
-            return f"${f/1e6:.2f}M"
-        if abs_f >= 1e3:
-            return f"${f/1e3:.2f}K"
-        return f"{f:.4f}"
-
-    import pandas as pd
-
-    # Single scalar
-    if isinstance(result, (int, float, np.integer, np.floating)):
-        return f"The result is **{fmt_number(result)}**."
-
-    # Pandas Series
-    if isinstance(result, pd.Series):
-        lines = [f"- **{idx}**: {fmt_number(val)}" for idx, val in result.items()]
-        return "\n".join(lines)
-
-    # Pandas DataFrame
-    if isinstance(result, pd.DataFrame):
-        rows = []
-        for _, row in result.iterrows():
-            parts = []
-            for col, val in row.items():
-                if col in ("company", "fiscalYear", "symbol", "period"):
-                    parts.append(str(val))
-                else:
-                    parts.append(f"{col}: **{fmt_number(val)}**")
-            rows.append("  ".join(parts))
-        return "\n".join(rows)
-
-    # Fallback
-    return str(result)
-
-
 def _history_text(messages: list) -> str:
     """Summarise the last 3 turns for the rephrase prompt."""
-    lines = []
-    for m in messages[-6:]:
-        if isinstance(m, HumanMessage):
-            lines.append(f"User: {m.content}")
-        elif isinstance(m, AIMessage):
-            lines.append(f"Assistant: {m.content[:200]}")
-    return "\n".join(lines) if lines else "None"
     lines = []
     for m in messages[-6:]:
         if isinstance(m, HumanMessage):
