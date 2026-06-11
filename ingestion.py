@@ -14,7 +14,7 @@ What it does:
   7. Saves a BM25 corpus pickle alongside for hybrid keyword search
 
 Run:
-    python -m src.ingestion.ingestion
+    python ingestion.py
 """
 
 import logging
@@ -22,7 +22,7 @@ import pickle
 import re
 from pathlib import Path
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # Organization name detection from filename
 ORG_MAP = {
-    "googl": "google",
+    "googl":     "google",
     "google":    "google",
     "alphabet":  "google",
     "microsoft": "microsoft",
@@ -67,11 +67,8 @@ def parse_filename(filename: str) -> dict:
     }
 
 
-# verify if pinecone index is avilable
-
 def verify_index(pc: Pinecone) -> None:
     """Create the Pinecone index if it does not already exist."""
-    
     existing_indices = [idx.name for idx in pc.list_indexes()]
     if cfg.PINECONE_INDEX not in existing_indices:
         logger.info("Creating Pinecone index '%s' (dim=%d)…", cfg.PINECONE_INDEX, cfg.EMBEDDING_DIM)
@@ -85,8 +82,6 @@ def verify_index(pc: Pinecone) -> None:
     else:
         logger.info("Index '%s' already exists — skipping creation.", cfg.PINECONE_INDEX)
 
-
-# load BM25 corpus
 
 def load_bm25_corpus() -> list[dict]:
     """Load existing BM25 corpus from disk (empty list if not found)."""
@@ -106,8 +101,6 @@ def save_bm25_corpus(corpus: list[dict]) -> None:
         pickle.dump(corpus, f)
     logger.info("BM25 corpus saved → %s  (%d total docs)", cfg.BM25_CORPUS_PATH, len(corpus))
 
-
-# Per sec file ingestion
 
 def ingest_sec(pdf_path: Path, pc: Pinecone, embeddings: OpenAIEmbeddings, corpus: list[dict]) -> list[dict]:
     """
@@ -142,7 +135,7 @@ def ingest_sec(pdf_path: Path, pc: Pinecone, embeddings: OpenAIEmbeddings, corpu
     # Step 3 — Embed and upsert to Pinecone in batches
     batch_size = 100
     total_batches = (len(chunks) - 1) // batch_size + 1
-    
+
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i : i + batch_size]
         PineconeVectorStore.from_documents(
@@ -151,9 +144,8 @@ def ingest_sec(pdf_path: Path, pc: Pinecone, embeddings: OpenAIEmbeddings, corpu
             index_name=cfg.PINECONE_INDEX,
             namespace=cfg.PINECONE_NAMESPACE,
         )
-        
-        logger.info("  Batch %d/%d — upserted %d chunks",i // batch_size + 1, total_batches, len(batch))
-    
+        logger.info("  Batch %d/%d — upserted %d chunks", i // batch_size + 1, total_batches, len(batch))
+
     logger.info("  ✓ Pinecone upsert complete (%d total chunks)", len(chunks))
 
     # Step 4 — Append to BM25 corpus
@@ -164,8 +156,6 @@ def ingest_sec(pdf_path: Path, pc: Pinecone, embeddings: OpenAIEmbeddings, corpu
     return corpus
 
 
-# ingestion pipeline
-
 def ingestion_pipeline() -> None:
     """
     Scan data/SEC_Filings/, ingest every PDF into Pinecone, and save
@@ -173,11 +163,11 @@ def ingestion_pipeline() -> None:
     If a file was already ingested, its vectors will be overwritten
     (Pinecone upsert is idempotent by content hash).
     """
-    logger.info("="*10)
+    logger.info("=" * 10)
     logger.info("  FinSight Ingestion Pipeline")
     logger.info("  SEC_DIR : %s", cfg.SEC_DIR)
     logger.info("  Index   : %s / namespace=%s", cfg.PINECONE_INDEX, cfg.PINECONE_NAMESPACE)
-    logger.info("="*10)
+    logger.info("=" * 10)
 
     # Discover PDFs
     pdfs = sorted(cfg.SEC_DIR.glob("*.pdf"))
@@ -213,12 +203,13 @@ def ingestion_pipeline() -> None:
     # Save updated corpus
     save_bm25_corpus(corpus)
 
-    logger.info(10*"=")
+    logger.info("=" * 10)
     logger.info("  Ingestion complete!")
     logger.info("  PDFs processed      : %d", len(pdfs))
     logger.info("  New BM25 chunks     : %d", len(corpus) - start_count)
     logger.info("  Total BM25 corpus   : %d", len(corpus))
-    logger.info(10*"=")
+    logger.info("=" * 10)
+
 
 if __name__ == "__main__":
     ingestion_pipeline()

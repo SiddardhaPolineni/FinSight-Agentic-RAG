@@ -1,0 +1,196 @@
+{
+  "statement_type": "income_statement",
+  "description": "Profit and loss statement showing revenues, expenses, and earnings over a fiscal period.",
+  "index_columns": {
+    "company":     { "description": "Company name, title-cased", "examples": ["Apple", "Google", "Microsoft", "Nvidia"] },
+    "fiscalYear":  { "description": "4-digit fiscal year derived from the date column", "examples": ["2021", "2022", "2023", "2024", "2025"] }
+  },
+  "columns": {
+    "revenue": {
+      "description": "Total net revenue for the fiscal period.",
+      "aliases": ["revenue", "sales", "total revenue", "net revenue", "top line", "total sales"],
+      "unit": "USD",
+      "examples": [391035000000, 416161000000]
+    },
+    "costOfRevenue": {
+      "description": "Direct costs attributable to producing goods or services sold.",
+      "aliases": ["cost of revenue", "cogs", "cost of goods sold", "cost of sales"],
+      "unit": "USD",
+      "examples": [210352000000, 220960000000]
+    },
+    "grossProfit": {
+      "description": "Revenue minus cost of revenue.",
+      "aliases": ["gross profit", "gross income", "gross margin value"],
+      "unit": "USD",
+      "examples": [180683000000, 195201000000]
+    },
+    "researchAndDevelopmentExpenses": {
+      "description": "Spending on research and development activities.",
+      "aliases": ["r&d", "research and development", "r&d expenses", "research expense"],
+      "unit": "USD",
+      "examples": [31370000000, 34550000000]
+    },
+    "generalAndAdministrativeExpenses": {
+      "description": "General and administrative overhead expenses.",
+      "aliases": ["g&a", "general and administrative", "admin expenses"],
+      "unit": "USD",
+      "examples": [7458000000, 27601000000]
+    },
+    "sellingAndMarketingExpenses": {
+      "description": "Costs related to sales and marketing activities.",
+      "aliases": ["selling expenses", "marketing expenses", "sales and marketing"],
+      "unit": "USD",
+      "examples": [18639000000, 0]
+    },
+    "sellingGeneralAndAdministrativeExpenses": {
+      "description": "Combined selling, general and administrative expenses.",
+      "aliases": ["sga", "sg&a", "selling general and administrative", "opex overhead"],
+      "unit": "USD",
+      "examples": [26097000000, 27601000000]
+    },
+    "otherExpenses": {
+      "description": "Other miscellaneous operating expenses not separately classified.",
+      "aliases": ["other expenses", "miscellaneous expenses"],
+      "unit": "USD",
+      "examples": [0, 500000000]
+    },
+    "operatingExpenses": {
+      "description": "Total operating expenses excluding cost of revenue.",
+      "aliases": ["opex", "operating expenses", "total opex"],
+      "unit": "USD",
+      "examples": [57467000000, 62151000000]
+    },
+    "costAndExpenses": {
+      "description": "Total of cost of revenue plus all operating expenses.",
+      "aliases": ["total costs", "total cost and expenses", "cost and expenses"],
+      "unit": "USD",
+      "examples": [267819000000, 283111000000]
+    },
+    "netInterestIncome": {
+      "description": "Interest income minus interest expense.",
+      "aliases": ["net interest income", "net interest"],
+      "unit": "USD",
+      "examples": [0, 3000000000]
+    },
+    "interestIncome": {
+      "description": "Income earned from interest-bearing assets.",
+      "aliases": ["interest income", "interest earned", "investment income"],
+      "unit": "USD",
+      "examples": [0, 4000000000]
+    },
+    "interestExpense": {
+      "description": "Interest costs on outstanding debt obligations.",
+      "aliases": ["interest expense", "interest cost", "debt interest"],
+      "unit": "USD",
+      "examples": [0, 1000000000]
+    },
+    "depreciationAndAmortization": {
+      "description": "Non-cash expense reflecting asset value reduction over time.",
+      "aliases": ["depreciation", "d&a", "depreciation and amortization", "amortization"],
+      "unit": "USD",
+      "examples": [11445000000, 11698000000]
+    },
+    "ebitda": {
+      "description": "Earnings before interest, taxes, depreciation and amortization.",
+      "aliases": ["ebitda", "earnings before interest tax depreciation amortization"],
+      "unit": "USD",
+      "examples": [134930000000, 144427000000]
+    },
+    "ebit": {
+      "description": "Earnings before interest and taxes.",
+      "aliases": ["ebit", "earnings before interest and tax", "operating earnings"],
+      "unit": "USD",
+      "examples": [123485000000, 132729000000]
+    },
+    "nonOperatingIncomeExcludingInterest": {
+      "description": "Non-operating income items excluding interest income/expense.",
+      "aliases": ["non operating income", "other income"],
+      "unit": "USD",
+      "examples": [-269000000, 321000000]
+    },
+    "operatingIncome": {
+      "description": "Income from core business operations (gross profit minus operating expenses).",
+      "aliases": ["operating income", "operating profit", "income from operations", "ebit operating"],
+      "unit": "USD",
+      "examples": [123216000000, 133050000000]
+    },
+    "totalOtherIncomeExpensesNet": {
+      "description": "Net total of all non-operating income and expense items.",
+      "aliases": ["other income net", "non operating net", "total other income"],
+      "unit": "USD",
+      "examples": [269000000, -321000000]
+    },
+    "incomeBeforeTax": {
+      "description": "Earnings before income tax expense.",
+      "aliases": ["pretax income", "income before tax", "ebt", "pre-tax profit"],
+      "unit": "USD",
+      "examples": [123485000000, 132729000000]
+    },
+    "incomeTaxExpense": {
+      "description": "Income tax charged against earnings for the period.",
+      "aliases": ["tax", "income tax", "tax expense", "provision for taxes"],
+      "unit": "USD",
+      "examples": [29749000000, 20719000000]
+    },
+    "netIncomeFromContinuingOperations": {
+      "description": "Net income from ongoing business operations excluding discontinued items.",
+      "aliases": ["income from continuing operations", "continuing operations income"],
+      "unit": "USD",
+      "examples": [93736000000, 112010000000]
+    },
+    "netIncomeFromDiscontinuedOperations": {
+      "description": "Net income or loss from business segments that have been or will be discontinued.",
+      "aliases": ["discontinued operations", "discontinued income"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "otherAdjustmentsToNetIncome": {
+      "description": "Other reconciling adjustments to arrive at reported net income.",
+      "aliases": ["other adjustments", "net income adjustments"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "netIncome": {
+      "description": "After-tax profit for the period. Primary bottom-line metric.",
+      "aliases": ["net income", "net profit", "earnings", "profit", "bottom line", "net earnings"],
+      "unit": "USD",
+      "examples": [93736000000, 112010000000]
+    },
+    "netIncomeDeductions": {
+      "description": "Deductions applied to net income.",
+      "aliases": ["income deductions", "net income deductions"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "bottomLineNetIncome": {
+      "description": "Final reported net income after all deductions.",
+      "aliases": ["bottom line", "final net income", "reported net income"],
+      "unit": "USD",
+      "examples": [93736000000, 112010000000]
+    },
+    "eps": {
+      "description": "Basic earnings per share.",
+      "aliases": ["basic eps", "basic earnings per share", "eps basic"],
+      "unit": "USD per share",
+      "examples": [6.11, 7.49]
+    },
+    "epsDiluted": {
+      "description": "Diluted earnings per share (accounts for all potential dilutive securities).",
+      "aliases": ["eps", "earnings per share", "diluted eps", "eps diluted"],
+      "unit": "USD per share",
+      "examples": [6.08, 7.46]
+    },
+    "weightedAverageShsOut": {
+      "description": "Weighted average number of basic shares outstanding.",
+      "aliases": ["shares outstanding", "basic shares", "weighted average shares"],
+      "unit": "shares",
+      "examples": [15343783000, 14948500000]
+    },
+    "weightedAverageShsOutDil": {
+      "description": "Weighted average number of diluted shares outstanding.",
+      "aliases": ["diluted shares", "diluted shares outstanding", "fully diluted shares"],
+      "unit": "shares",
+      "examples": [15408095000, 15004697000]
+    }
+  }
+}

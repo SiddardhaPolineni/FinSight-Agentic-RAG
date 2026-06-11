@@ -1,0 +1,244 @@
+{
+  "statement_type": "cash_flow",
+  "description": "Statement of cash flows showing how cash moves in and out of the business across operating, investing and financing activities.",
+  "index_columns": {
+    "company":     { "description": "Company name, title-cased", "examples": ["Apple", "Google", "Microsoft", "Nvidia"] },
+    "fiscalYear":  { "description": "4-digit fiscal year derived from the date column", "examples": ["2021", "2022", "2023", "2024", "2025"] }
+  },
+  "columns": {
+    "netIncome": {
+      "description": "Net income as reported on the income statement, used as the starting point for cash flow.",
+      "aliases": ["net income", "net profit", "earnings", "profit"],
+      "unit": "USD",
+      "examples": [72880000000, 120067000000]
+    },
+    "depreciationAndAmortization": {
+      "description": "Non-cash depreciation and amortization added back to net income.",
+      "aliases": ["depreciation", "d&a", "depreciation and amortization"],
+      "unit": "USD",
+      "examples": [1864000000, 2843000000]
+    },
+    "deferredIncomeTax": {
+      "description": "Change in deferred tax assets and liabilities.",
+      "aliases": ["deferred income tax", "deferred tax change"],
+      "unit": "USD",
+      "examples": [-4477000000, -1424000000]
+    },
+    "stockBasedCompensation": {
+      "description": "Non-cash expense for equity-based employee compensation added back.",
+      "aliases": ["stock based compensation", "sbc", "share based compensation", "stock comp"],
+      "unit": "USD",
+      "examples": [4737000000, 6386000000]
+    },
+    "changeInWorkingCapital": {
+      "description": "Net change in current assets minus current liabilities.",
+      "aliases": ["change in working capital", "working capital change", "working capital"],
+      "unit": "USD",
+      "examples": [-9383000000, -15949000000]
+    },
+    "accountsReceivables": {
+      "description": "Change in accounts receivable balances during the period.",
+      "aliases": ["change in accounts receivable", "receivables change"],
+      "unit": "USD",
+      "examples": [-13063000000, -15399000000]
+    },
+    "inventory": {
+      "description": "Change in inventory levels during the period.",
+      "aliases": ["inventory change", "change in inventory"],
+      "unit": "USD",
+      "examples": [-4781000000, -11324000000]
+    },
+    "accountsPayables": {
+      "description": "Change in accounts payable balances during the period.",
+      "aliases": ["change in accounts payable", "payables change"],
+      "unit": "USD",
+      "examples": [3357000000, 3096000000]
+    },
+    "otherWorkingCapital": {
+      "description": "Other working capital changes not separately classified.",
+      "aliases": ["other working capital", "other current changes"],
+      "unit": "USD",
+      "examples": [5104000000, 7678000000]
+    },
+    "otherNonCashItems": {
+      "description": "Other non-cash adjustments to reconcile net income to cash flow.",
+      "aliases": ["other non cash items", "non cash adjustments"],
+      "unit": "USD",
+      "examples": [-1532000000, -9205000000]
+    },
+    "netCashProvidedByOperatingActivities": {
+      "description": "Total net cash generated from core business operations.",
+      "aliases": ["cash from operations", "operating cash", "operating activities cash", "cfo"],
+      "unit": "USD",
+      "examples": [64089000000, 102718000000]
+    },
+    "investmentsInPropertyPlantAndEquipment": {
+      "description": "Cash spent on purchasing or improving physical assets.",
+      "aliases": ["ppe investment", "capex ppe", "property plant equipment investment"],
+      "unit": "USD",
+      "examples": [-3236000000, -6042000000]
+    },
+    "acquisitionsNet": {
+      "description": "Net cash paid for business acquisitions.",
+      "aliases": ["acquisitions", "net acquisitions", "m&a spending"],
+      "unit": "USD",
+      "examples": [-1007000000, -1535000000]
+    },
+    "purchasesOfInvestments": {
+      "description": "Cash used to purchase investment securities.",
+      "aliases": ["purchases of investments", "investment purchases", "securities purchased"],
+      "unit": "USD",
+      "examples": [-28061000000, -58118000000]
+    },
+    "salesMaturitiesOfInvestments": {
+      "description": "Cash received from selling or maturing investment securities.",
+      "aliases": ["sales of investments", "investment sales", "securities sales"],
+      "unit": "USD",
+      "examples": [11861000000, 26467000000]
+    },
+    "otherInvestingActivities": {
+      "description": "Other investing cash flows not separately classified.",
+      "aliases": ["other investing activities", "other investing cash flows"],
+      "unit": "USD",
+      "examples": [22000000, -13000000000]
+    },
+    "netCashProvidedByInvestingActivities": {
+      "description": "Total net cash from all investing activities.",
+      "aliases": ["investing activities", "cash from investing", "investing cash flow"],
+      "unit": "USD",
+      "examples": [-20421000000, -52228000000]
+    },
+    "netDebtIssuance": {
+      "description": "Net proceeds from issuing or repaying debt.",
+      "aliases": ["net debt issuance", "debt issuance net"],
+      "unit": "USD",
+      "examples": [-1250000000, 0]
+    },
+    "longTermNetDebtIssuance": {
+      "description": "Net long-term debt issued or repaid.",
+      "aliases": ["long term debt issuance", "long term debt net"],
+      "unit": "USD",
+      "examples": [-1250000000, 0]
+    },
+    "shortTermNetDebtIssuance": {
+      "description": "Net short-term debt issued or repaid.",
+      "aliases": ["short term debt issuance", "short term debt net"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "netStockIssuance": {
+      "description": "Net cash from issuing or repurchasing all classes of stock.",
+      "aliases": ["net stock issuance", "equity issuance net"],
+      "unit": "USD",
+      "examples": [-33706000000, -40086000000]
+    },
+    "netCommonStockIssuance": {
+      "description": "Net cash from issuing or repurchasing common stock.",
+      "aliases": ["common stock issuance net", "net common equity"],
+      "unit": "USD",
+      "examples": [-33706000000, -40086000000]
+    },
+    "commonStockIssuance": {
+      "description": "Proceeds from issuing common stock.",
+      "aliases": ["common stock issuance", "stock issuance proceeds"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "commonStockRepurchased": {
+      "description": "Cash spent repurchasing common shares (buybacks). Usually negative.",
+      "aliases": ["buybacks", "stock buybacks", "share repurchases", "stock repurchase", "buyback"],
+      "unit": "USD",
+      "examples": [-33706000000, -40086000000]
+    },
+    "netPreferredStockIssuance": {
+      "description": "Net cash from issuing or redeeming preferred stock.",
+      "aliases": ["preferred stock issuance", "net preferred equity"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "netDividendsPaid": {
+      "description": "Total dividends paid to all shareholders. Usually negative.",
+      "aliases": ["dividends paid", "dividends", "total dividends", "dividend payments"],
+      "unit": "USD",
+      "examples": [-834000000, -974000000]
+    },
+    "commonDividendsPaid": {
+      "description": "Dividends paid to common shareholders.",
+      "aliases": ["common dividends", "dividends paid to common shareholders"],
+      "unit": "USD",
+      "examples": [-834000000, -974000000]
+    },
+    "preferredDividendsPaid": {
+      "description": "Dividends paid to preferred shareholders.",
+      "aliases": ["preferred dividends", "dividends paid to preferred shareholders"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "otherFinancingActivities": {
+      "description": "Other financing cash flows not separately classified.",
+      "aliases": ["other financing activities", "other financing cash flows"],
+      "unit": "USD",
+      "examples": [-6569000000, -7414000000]
+    },
+    "netCashProvidedByFinancingActivities": {
+      "description": "Total net cash from all financing activities.",
+      "aliases": ["financing activities", "cash from financing", "financing cash flow"],
+      "unit": "USD",
+      "examples": [-42359000000, -48474000000]
+    },
+    "effectOfForexChangesOnCash": {
+      "description": "Impact of foreign exchange rate changes on cash balances.",
+      "aliases": ["forex effect", "effect of exchange rate", "currency effect on cash"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "netChangeInCash": {
+      "description": "Net increase or decrease in cash during the period.",
+      "aliases": ["net change in cash", "change in cash", "cash change"],
+      "unit": "USD",
+      "examples": [1309000000, 2016000000]
+    },
+    "cashAtEndOfPeriod": {
+      "description": "Cash balance at the end of the reporting period.",
+      "aliases": ["ending cash", "cash at end of period", "period end cash"],
+      "unit": "USD",
+      "examples": [8589000000, 10605000000]
+    },
+    "cashAtBeginningOfPeriod": {
+      "description": "Cash balance at the beginning of the reporting period.",
+      "aliases": ["beginning cash", "cash at start", "opening cash balance"],
+      "unit": "USD",
+      "examples": [7280000000, 8589000000]
+    },
+    "operatingCashFlow": {
+      "description": "Cash generated from core operations. Primary measure of operational cash health.",
+      "aliases": ["operating cash flow", "cfo", "cash flow from operations", "ocf"],
+      "unit": "USD",
+      "examples": [64089000000, 102718000000]
+    },
+    "capitalExpenditure": {
+      "description": "Cash spent on long-term physical assets (property, plant, equipment). Usually negative.",
+      "aliases": ["capex", "capital expenditure", "capital expenditures", "capital spending", "capex spending"],
+      "unit": "USD",
+      "examples": [-3236000000, -6042000000]
+    },
+    "freeCashFlow": {
+      "description": "Operating cash flow minus capital expenditure. Measures cash available after maintaining operations.",
+      "aliases": ["free cash flow", "fcf", "free cash"],
+      "unit": "USD",
+      "examples": [60853000000, 96676000000]
+    },
+    "incomeTaxesPaid": {
+      "description": "Actual cash paid for income taxes during the period.",
+      "aliases": ["taxes paid", "income taxes paid", "cash taxes paid"],
+      "unit": "USD",
+      "examples": [15118000000, 0]
+    },
+    "interestPaid": {
+      "description": "Actual cash paid for interest on debt obligations.",
+      "aliases": ["interest paid", "cash interest paid", "interest payments"],
+      "unit": "USD",
+      "examples": [246000000, 0]
+    }
+  }
+}

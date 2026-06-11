@@ -6,14 +6,24 @@ from langchain_core.prompts import ChatPromptTemplate
 
 # ── 1. Rephrase ────────────────────────────────────────────────────────────────
 REPHRASE_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a financial query optimizer.
-Rewrite the user's question to be precise, unambiguous, and retrieval-friendly.
+    ("system", """You are a financial query optimizer with access to the recent conversation history.
+
+Your job is to rewrite the user's latest question into a fully self-contained, precise query.
+
+Rules:
+- Resolve follow-up references using the conversation history:
+  e.g. "what about 2023?" → repeat the full prior question for 2023
+  e.g. "compare that with Apple" → include the prior metric/company explicitly
+  e.g. "and Microsoft?" → carry over the metric and year from the prior question
 - Expand tickers: AAPL→Apple, NVDA→Nvidia, MSFT→Microsoft, GOOG/GOOGL/Alphabet→Google
-- Add fiscal year if implied (e.g. "last year" → "FY2024")
+- Add fiscal year if clearly implied (e.g. "last year" → "FY2024")
 - Include relevant financial terms (revenue, EPS, EBITDA, free cash flow, etc.)
-- If comparing companies, name both explicitly
-Return ONLY the rewritten question — no explanation, no preamble."""),
-    ("human", "{question}"),
+- If the question is already self-contained, return it with only minor cleanup
+- Return ONLY the rewritten question — no explanation, no preamble
+
+Conversation history (last 3 turns):
+{history}"""),
+    ("human", "Latest question: {question}"),
 ])
 
 # ── 2. Intent + entity extraction ─────────────────────────────────────────────
@@ -44,70 +54,55 @@ Return ONLY the JSON, no markdown fences."""),
 PANDAS_QUERY_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are a pandas expert working with financial data.
 
-You have a DataFrame called `df` with these columns:
-  - company       (str) : company name, e.g. "Apple", "Nvidia"
-  - fiscalYear    (str) : fiscal year,  e.g. "2023", "2024"
-  - symbol        (str) : ticker symbol
-{schema}
+You have a DataFrame called `df`. Here is its schema with real sample values:
 
-User question: {question}
+{column_context}
 
-Write a single pandas expression that COMPUTES and RETURNS the final answer.
-The expression should do all calculations itself — do NOT just select rows for an LLM to analyze later.
-
-Examples of what the expression should return:
-  - A scalar   : df[df["company"]=="Nvidia"]["revenue"].sum()
-  - A Series   : df.groupby("company")["freeCashFlow"].max()
-  - A small df : df[df["fiscalYear"]=="2024"][["company","revenue","netIncome"]]
-  - A computed value: (df[...]["revenue"].iloc[-1] - df[...]["revenue"].iloc[-2]) / df[...]["revenue"].iloc[-2] * 100
+Write a single pandas expression that computes and returns the answer to the question.
 
 Rules:
-- Use df["company"].str.lower() == "nvidia" for case-insensitive company filter
-- Compute YoY growth, ratios, rankings directly in the expression
-- Do NOT use print(), plt, or any imports
+- Use ONLY column names shown above — they are the exact names in `df`
+- Always filter with a combined boolean mask:
+    df[(df["company"].str.lower() == "apple") & (df["fiscalYear"] == "2024")]["revenue"].iloc[0]
+- Never chain .loc[] on an already-filtered slice — causes index misalignment
+- For comparisons or trends, return a small DataFrame or Series
+- Do NOT use print(), imports, or plt
 - Return ONLY the pandas expression — no explanation, no code fences"""),
-    ("human", "Write the pandas expression:"),
+    ("human", "Question: {question}\n\nPandas expression:"),
 ])
 
 # ── 3b. Chart pandas query + axis spec ─────────────────────────────────────────
 CHART_QUERY_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are a pandas expert and chart designer working with financial data.
 
-You have a DataFrame called `df` with these columns:
-  - company       (str) : company name, e.g. "Apple", "Nvidia"
-  - fiscalYear    (str) : fiscal year,  e.g. "2023", "2024"
-  - symbol        (str) : ticker symbol
-{schema}
+You have a DataFrame called `df`. Here is its schema with real sample values:
 
-User question: {question}
+{column_context}
 
 Return a JSON object with exactly these keys:
 {{
-  "expr":  "<pandas expression that returns a DataFrame ready to plot>",
-  "x":     "<column name for the x-axis>",
-  "y":     "<column name for the y-axis>",
+  "expr":  "<pandas expression returning a DataFrame ready to plot>",
+  "x":     "<column name for x-axis>",
+  "y":     "<column name for y-axis>",
   "color": "<column name for color/grouping, or null if single series>",
   "title": "<short descriptive chart title>"
 }}
 
-Rules for the pandas expression:
-- MUST return a DataFrame — never a scalar or raw Series
-- Include only the columns needed: x, y, and color columns
-- Compute aggregations (sum, mean, groupby) directly inside the expression
-- Use df["company"].str.lower() for case-insensitive filtering
-- Do NOT use print(), plt, or any imports
+Rules:
+- Use ONLY column names shown in the schema above
+- expr MUST return a DataFrame — never a scalar or raw Series
+- Always use a combined boolean mask for filtering
+- Do NOT use print(), imports, or plt
 
-Axis selection logic — choose based on what the question asks:
-  | Question type                              | x          | color       |
-  |--------------------------------------------|------------|-------------|
-  | Trend over time for one company            | fiscalYear | null        |
-  | Trend over time, compare multiple companies| fiscalYear | company     |
-  | Compare companies at a point in time       | company    | null        |
-  | Compare companies with metric breakdown    | company    | fiscalYear  |
-  | Cumulative / aggregate across all years    | company    | null        |
+Axis selection:
+  | Question type                               | x          | color      |
+  |---------------------------------------------|------------|------------|
+  | Trend over time, one company                | fiscalYear | null       |
+  | Trend over time, multiple companies         | fiscalYear | company    |
+  | Compare companies at one point in time      | company    | null       |
 
-Return ONLY the JSON — no markdown fences, no explanation."""),
-    ("human", "Write the chart spec JSON:"),
+Return ONLY the JSON — no markdown fences."""),
+    ("human", "Question: {question}\n\nChart spec JSON:"),
 ])
 
 # ── 4. CSV result interpreter ───────────────────────────────────────────────────

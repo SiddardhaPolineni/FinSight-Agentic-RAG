@@ -1,0 +1,328 @@
+{
+  "statement_type": "balance_sheet",
+  "description": "Snapshot of a company's assets, liabilities, and shareholders equity at a point in time.",
+  "index_columns": {
+    "company":     { "description": "Company name, title-cased", "examples": ["Apple", "Google", "Microsoft", "Nvidia"] },
+    "fiscalYear":  { "description": "4-digit fiscal year derived from the date column", "examples": ["2021", "2022", "2023", "2024", "2025"] }
+  },
+  "columns": {
+    "cashAndCashEquivalents": {
+      "description": "Highly liquid assets including cash and equivalents with maturity under 3 months.",
+      "aliases": ["cash", "cash and equivalents", "cash and cash equivalents", "cash balance"],
+      "unit": "USD",
+      "examples": [57216000000, 64313000000]
+    },
+    "shortTermInvestments": {
+      "description": "Investments maturing within one year, typically marketable securities.",
+      "aliases": ["short term investments", "investments", "marketable securities", "current investments"],
+      "unit": "USD",
+      "examples": [75531000000, 94555000000]
+    },
+    "cashAndShortTermInvestments": {
+      "description": "Combined cash, cash equivalents and short-term investments.",
+      "aliases": ["cash and short term investments", "liquid assets", "cash and investments"],
+      "unit": "USD",
+      "examples": [56924000000, 69905000000]
+    },
+    "netReceivables": {
+      "description": "Net amounts owed to the company by customers after allowances.",
+      "aliases": ["receivables", "net receivables", "trade receivables"],
+      "unit": "USD",
+      "examples": [56924000000, 69905000000]
+    },
+    "accountsReceivables": {
+      "description": "Amounts owed by customers for goods/services delivered.",
+      "aliases": ["accounts receivable", "ar", "trade accounts receivable"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "otherReceivables": {
+      "description": "Receivables not classified as trade accounts receivable.",
+      "aliases": ["other receivables", "non-trade receivables"],
+      "unit": "USD",
+      "examples": [1246000000, 938000000]
+    },
+    "inventory": {
+      "description": "Value of raw materials, work-in-progress, and finished goods held for sale.",
+      "aliases": ["inventory", "inventories", "stock"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "prepaids": {
+      "description": "Expenses paid in advance and not yet recognized.",
+      "aliases": ["prepaid expenses", "prepaids", "prepaid assets"],
+      "unit": "USD",
+      "examples": [26033000000, 25733000000]
+    },
+    "otherCurrentAssets": {
+      "description": "Current assets not separately classified elsewhere.",
+      "aliases": ["other current assets", "miscellaneous current assets"],
+      "unit": "USD",
+      "examples": [159734000000, 191131000000]
+    },
+    "totalCurrentAssets": {
+      "description": "Sum of all assets expected to be converted to cash within one year.",
+      "aliases": ["current assets", "total current assets", "short term assets"],
+      "unit": "USD",
+      "examples": [154552000000, 229789000000]
+    },
+    "propertyPlantEquipmentNet": {
+      "description": "Tangible long-term assets net of accumulated depreciation.",
+      "aliases": ["ppe", "property plant and equipment", "fixed assets", "net ppe", "plant and equipment"],
+      "unit": "USD",
+      "examples": [119220000000, 119509000000]
+    },
+    "goodwill": {
+      "description": "Premium paid over fair value in acquisitions.",
+      "aliases": ["goodwill", "acquisition goodwill"],
+      "unit": "USD",
+      "examples": [27597000000, 22604000000]
+    },
+    "intangibleAssets": {
+      "description": "Non-physical long-term assets such as patents, trademarks, and licenses.",
+      "aliases": ["intangibles", "intangible assets", "intellectual property"],
+      "unit": "USD",
+      "examples": [146817000000, 142113000000]
+    },
+    "goodwillAndIntangibleAssets": {
+      "description": "Combined goodwill and intangible assets.",
+      "aliases": ["goodwill and intangibles", "total intangibles"],
+      "unit": "USD",
+      "examples": [14600000000, 15133000000]
+    },
+    "longTermInvestments": {
+      "description": "Investments held for more than one year.",
+      "aliases": ["long term investments", "long-term investments", "non-current investments"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "taxAssets": {
+      "description": "Deferred tax assets and other tax-related assets.",
+      "aliases": ["tax assets", "deferred tax asset", "tax receivable"],
+      "unit": "USD",
+      "examples": [36460000000, 40837000000]
+    },
+    "otherNonCurrentAssets": {
+      "description": "Non-current assets not separately classified.",
+      "aliases": ["other non current assets", "other long term assets"],
+      "unit": "USD",
+      "examples": [352429000000, 427872000000]
+    },
+    "totalNonCurrentAssets": {
+      "description": "Sum of all assets not expected to be liquidated within one year.",
+      "aliases": ["non current assets", "long term assets", "total non current assets"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "otherAssets": {
+      "description": "Assets not classified in any other category.",
+      "aliases": ["other assets", "miscellaneous assets"],
+      "unit": "USD",
+      "examples": [512163000000, 619003000000]
+    },
+    "totalAssets": {
+      "description": "Sum of all assets owned by the company.",
+      "aliases": ["total assets", "assets", "total asset base"],
+      "unit": "USD",
+      "examples": [27013000000, 34935000000]
+    },
+    "totalPayables": {
+      "description": "Total amounts owed to suppliers and creditors.",
+      "aliases": ["total payables", "payables"],
+      "unit": "USD",
+      "examples": [21996000000, 27724000000]
+    },
+    "accountPayables": {
+      "description": "Amounts owed to suppliers for goods and services received.",
+      "aliases": ["accounts payable", "ap", "trade payables"],
+      "unit": "USD",
+      "examples": [5017000000, 7211000000]
+    },
+    "otherPayables": {
+      "description": "Payables not classified as accounts payable.",
+      "aliases": ["other payables", "non-trade payables"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "accruedExpenses": {
+      "description": "Expenses incurred but not yet paid.",
+      "aliases": ["accrued expenses", "accrued liabilities", "accruals"],
+      "unit": "USD",
+      "examples": [8942000000, 2999000000]
+    },
+    "shortTermDebt": {
+      "description": "Debt obligations due within one year.",
+      "aliases": ["short term debt", "current debt", "current portion of debt", "short-term borrowings"],
+      "unit": "USD",
+      "examples": [5929000000, 8596000000]
+    },
+    "capitalLeaseObligationsCurrent": {
+      "description": "Current portion of capital lease obligations.",
+      "aliases": ["current capital leases", "capital lease current"],
+      "unit": "USD",
+      "examples": [5017000000, 0]
+    },
+    "taxPayables": {
+      "description": "Income taxes and other taxes currently owed.",
+      "aliases": ["tax payable", "taxes payable", "income tax payable"],
+      "unit": "USD",
+      "examples": [57582000000, 64555000000]
+    },
+    "deferredRevenue": {
+      "description": "Revenue received but not yet earned.",
+      "aliases": ["deferred revenue", "unearned revenue", "contract liabilities"],
+      "unit": "USD",
+      "examples": [25820000000, 30133000000]
+    },
+    "otherCurrentLiabilities": {
+      "description": "Current liabilities not classified elsewhere.",
+      "aliases": ["other current liabilities", "other short term liabilities"],
+      "unit": "USD",
+      "examples": [125286000000, 141218000000]
+    },
+    "totalCurrentLiabilities": {
+      "description": "Sum of all obligations due within one year.",
+      "aliases": ["current liabilities", "total current liabilities", "short term liabilities"],
+      "unit": "USD",
+      "examples": [42688000000, 40152000000]
+    },
+    "longTermDebt": {
+      "description": "Debt obligations due after one year.",
+      "aliases": ["long term debt", "long-term debt", "non-current debt", "long term borrowings"],
+      "unit": "USD",
+      "examples": [40293000000, 60437000000]
+    },
+    "capitalLeaseObligationsNonCurrent": {
+      "description": "Non-current portion of capital lease obligations.",
+      "aliases": ["long term capital leases", "non current capital lease"],
+      "unit": "USD",
+      "examples": [2602000000, 2710000000]
+    },
+    "deferredRevenueNonCurrent": {
+      "description": "Non-current deferred revenue.",
+      "aliases": ["non current deferred revenue", "long term deferred revenue"],
+      "unit": "USD",
+      "examples": [2618000000, 2835000000]
+    },
+    "deferredTaxLiabilitiesNonCurrent": {
+      "description": "Non-current deferred tax liabilities.",
+      "aliases": ["deferred tax liabilities", "deferred tax", "non current deferred tax"],
+      "unit": "USD",
+      "examples": [30199000000, 28172000000]
+    },
+    "otherNonCurrentLiabilities": {
+      "description": "Non-current liabilities not classified elsewhere.",
+      "aliases": ["other non current liabilities", "other long term liabilities"],
+      "unit": "USD",
+      "examples": [118400000000, 134306000000]
+    },
+    "totalNonCurrentLiabilities": {
+      "description": "Sum of all obligations not due within one year.",
+      "aliases": ["non current liabilities", "long term liabilities", "total non current liabilities"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "otherLiabilities": {
+      "description": "Liabilities not classified in other categories.",
+      "aliases": ["other liabilities", "miscellaneous liabilities"],
+      "unit": "USD",
+      "examples": [46222000000, 69033000000]
+    },
+    "capitalLeaseObligations": {
+      "description": "Total capital lease obligations (current + non-current).",
+      "aliases": ["capital lease obligations", "total capital leases", "lease liabilities"],
+      "unit": "USD",
+      "examples": [243686000000, 275524000000]
+    },
+    "totalLiabilities": {
+      "description": "Sum of all financial obligations of the company.",
+      "aliases": ["total liabilities", "liabilities", "total obligations"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "treasuryStock": {
+      "description": "Cost of shares repurchased by the company and held in treasury.",
+      "aliases": ["treasury stock", "buyback stock", "repurchased shares"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "preferredStock": {
+      "description": "Value of preferred shares issued.",
+      "aliases": ["preferred stock", "preferred equity", "preferred shares"],
+      "unit": "USD",
+      "examples": [100923000000, 109095000000]
+    },
+    "commonStock": {
+      "description": "Par value and additional paid-in capital of common shares.",
+      "aliases": ["common stock", "common equity", "common shares"],
+      "unit": "USD",
+      "examples": [173144000000, 237731000000]
+    },
+    "retainedEarnings": {
+      "description": "Cumulative undistributed earnings retained in the business.",
+      "aliases": ["retained earnings", "accumulated earnings", "retained profit"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "additionalPaidInCapital": {
+      "description": "Capital paid in excess of par value by shareholders.",
+      "aliases": ["additional paid in capital", "apic", "paid in capital"],
+      "unit": "USD",
+      "examples": [-5590000000, -3347000000]
+    },
+    "accumulatedOtherComprehensiveIncomeLoss": {
+      "description": "Accumulated other comprehensive income or loss not in net income.",
+      "aliases": ["aoci", "accumulated other comprehensive income", "other comprehensive income"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "otherTotalStockholdersEquity": {
+      "description": "Other components of stockholders equity not separately classified.",
+      "aliases": ["other equity", "other stockholders equity"],
+      "unit": "USD",
+      "examples": [268477000000, 343479000000]
+    },
+    "totalStockholdersEquity": {
+      "description": "Net assets attributable to common shareholders.",
+      "aliases": ["equity", "stockholders equity", "shareholders equity", "book value", "net worth"],
+      "unit": "USD",
+      "examples": [268477000000, 343479000000]
+    },
+    "totalEquity": {
+      "description": "Total equity including minority interest.",
+      "aliases": ["total equity", "total shareholders equity"],
+      "unit": "USD",
+      "examples": [0, 0]
+    },
+    "minorityInterest": {
+      "description": "Equity interest in subsidiaries not owned by the parent company.",
+      "aliases": ["minority interest", "non-controlling interest"],
+      "unit": "USD",
+      "examples": [512163000000, 619003000000]
+    },
+    "totalLiabilitiesAndTotalEquity": {
+      "description": "Sum of total liabilities and total equity. Must equal total assets.",
+      "aliases": ["total liabilities and equity", "balance sheet total"],
+      "unit": "USD",
+      "examples": [71816000000, 79446000000]
+    },
+    "totalInvestments": {
+      "description": "Combined short-term and long-term investment holdings.",
+      "aliases": ["total investments", "investments total"],
+      "unit": "USD",
+      "examples": [97852000000, 112184000000]
+    },
+    "totalDebt": {
+      "description": "Sum of short-term and long-term debt obligations.",
+      "aliases": ["total debt", "debt", "gross debt", "total borrowings"],
+      "unit": "USD",
+      "examples": [79537000000, 81942000000]
+    },
+    "netDebt": {
+      "description": "Total debt minus cash and cash equivalents.",
+      "aliases": ["net debt", "net borrowings"],
+      "unit": "USD",
+      "examples": []
+    }
+  }
+}
