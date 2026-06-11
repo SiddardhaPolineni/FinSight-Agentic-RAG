@@ -1,0 +1,31 @@
+# Virtual environment
+.venv/
+venv/
+
+# Environment variables — NEVER commit
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Data — corpus cache
+data/bm25_corpus.pkl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# UV
+uv.lock
+.uv/
+
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
