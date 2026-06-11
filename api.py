@@ -117,32 +117,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    import asyncio
-    from src.retriever.schema_retriever import SchemaRetriever
-
     n = load_bm25_index()
     logger.info("FinSight API ready. BM25 docs: %d", n)
-
-    # Pre-warm the schema cache for all 3 statement types.
-    # Each call costs ~1.5 s (embed + Pinecone). Running them concurrently
-    # means startup adds ~1.5 s total instead of 4.5 s, and every subsequent
-    # data query skips the schema fetch entirely (0 ms from cache).
-    _sr = SchemaRetriever()
-    warmup_questions = {
-        "income_statement": "revenue net income gross profit operating income ebitda eps margin",
-        "balance_sheet":    "total assets liabilities equity debt cash goodwill working capital",
-        "cash_flow":        "free cash flow operating cash capex capital expenditure investing financing",
-    }
-
-    async def _warm(stmt: str, q: str):
-        try:
-            await asyncio.to_thread(_sr.get_schema, q, stmt, 10)
-            logger.info("Schema cache warmed: %s", stmt)
-        except Exception as e:
-            logger.warning("Schema warmup failed for %s: %s", stmt, e)
-
-    await asyncio.gather(*[_warm(s, q) for s, q in warmup_questions.items()])
-    logger.info("Schema cache pre-warm complete")
 
 
 # ── Streaming endpoint ────────────────────────────────────────────────────────

@@ -1,27 +1,18 @@
 """
 FinSight Schema Retriever
 ──────────────────────────
-Retrieves relevant column schema from Pinecone metadata namespace
+Retrieves relevant column schema AND KPI definitions from Pinecone
 based on the user's question.
 
-Each record in the metadata namespace represents one financial column
-with its description, aliases, unit and example values.
-
-Results are cached in-process by (question_embedding_bucket, statement_type)
-to avoid redundant Pinecone + embedding roundtrips on repeated/similar queries.
-
-Usage:
-    retriever = SchemaRetriever()
-    schema_context = retriever.get_schema(
-        question="what was Apple's revenue in 2024",
-        statement_type="income_statement",
-        top_k=8,
-    )
+Key behavior:
+  - Searches across ALL statement types (no pre-filtering)
+  - Infers statement_type from the retrieved results
+  - Returns both schema context (for the LLM) and statement_type (for DataFrame loading)
 """
 
 import json
 import logging
-from functools import lru_cache
+from collections import Counter
 
 from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone
@@ -34,7 +25,7 @@ METADATA_NAMESPACE = "financial-schema"
 
 
 class SchemaRetriever:
-    """Retrieves relevant column schema from Pinecone for a given question."""
+    """Retrieves relevant columns + KPIs from Pinecone for a given question."""
 
     def __init__(self):
         self._embedder = OpenAIEmbeddings(
@@ -43,85 +34,144 @@ class SchemaRetriever:
         )
         pc = Pinecone(api_key=cfg.PINECONE_API_KEY)
         self._index = pc.Index(cfg.PINECONE_INDEX)
-        # In-process schema cache: (statement_type, question) → formatted string
-        self._schema_cache: dict[tuple[str, str], str] = {}
+        self._cache: dict[str, dict] = {}
         logger.info("SchemaRetriever ready")
 
-    def get_schema(
-        self,
-        question: str,
-        statement_type: str,
-        top_k: int = 10,
-    ) -> str:
+    def retrieve(self, question: str, top_k: int = 10) -> dict:
         """
-        Retrieve the most relevant column definitions for the question
-        and format them as a schema context string for the LLM.
-
-        Results are cached: identical (statement_type, question) pairs skip
-        the embedding + Pinecone roundtrip entirely.
+        Retrieve relevant columns and KPIs for a question.
 
         Args:
-            question:       user question to match against column descriptions/aliases
-            statement_type: "income_statement" | "balance_sheet" | "cash_flow"
-            top_k:          number of column records to retrieve
+            question: the user's financial question
+            top_k:    number of records to retrieve from Pinecone
 
         Returns:
-            Formatted schema string ready to inject into the LLM prompt.
+            {
+                "statement_type": "income_statement" (or comma-separated for cross-statement),
+                "schema_context": "formatted string for the LLM prompt",
+                "kpis": [{"name": ..., "formula": ..., ...}]
+            }
         """
-        cache_key = (statement_type, question.strip().lower())
-        if cache_key in self._schema_cache:
-            logger.debug("SchemaRetriever cache hit: %s / %s", statement_type, question[:50])
-            return self._schema_cache[cache_key]
+        cache_key = question.strip().lower()
+        if cache_key in self._cache:
+            return self._cache[cache_key]
 
         query_vector = self._embedder.embed_query(question)
 
+        # Search across ALL statement types — no filter
         results = self._index.query(
             vector=query_vector,
             top_k=top_k,
             namespace=METADATA_NAMESPACE,
-            filter={"statement_type": {"$eq": statement_type}},
             include_metadata=True,
         )
 
         if not results.matches:
-            logger.warning("No schema records found for statement_type=%s", statement_type)
-            result = f"No schema found for statement_type={statement_type}"
-            self._schema_cache[cache_key] = result
+            logger.warning("No schema records found for query: %s", question[:60])
+            result = {
+                "statement_type": None,
+                "schema_context": "No relevant schema found.",
+                "kpis": [],
+            }
+            self._cache[cache_key] = result
             return result
 
-        index_cols_text = (
-            "Index columns (always available for filtering):\n"
-            "  company      (str)  — company name, e.g. 'Apple', 'Google', 'Microsoft', 'Nvidia'\n"
-            "  fiscalYear   (str)  — 4-digit fiscal year, e.g. '2021', '2022', '2023', '2024', '2025'\n"
-        )
-
-        col_lines = []
-        seen_cols = set()
+        # Separate columns and KPIs from results
+        columns = []
+        kpis = []
+        statement_types = []
 
         for match in results.matches:
             m = match.metadata
-            col_name = m.get("column_name", "")
-            if col_name in seen_cols:
-                continue
-            seen_cols.add(col_name)
+            record_type = m.get("type", "column")
 
-            aliases = json.loads(m.get("aliases", "[]"))
-            unit    = m.get("unit", "USD")
-            desc    = m.get("description", "")
-            alias_str = ", ".join(f'"{a}"' for a in aliases[:4])
+            if record_type == "kpi":
+                kpis.append({
+                    "name":     m.get("kpi_name", ""),
+                    "formula":  m.get("formula", ""),
+                    "required_columns": json.loads(m.get("required_columns", "[]")),
+                    "statement_type":   m.get("statement_type", ""),
+                    "description":      m.get("description", ""),
+                })
+                # KPIs can span multiple statement types
+                for st in m.get("statement_type", "").split(","):
+                    st = st.strip()
+                    if st:
+                        statement_types.append(st)
+            else:
+                col_name = m.get("column_name", "")
+                stmt     = m.get("statement_type", "")
+                if col_name not in [c["column_name"] for c in columns]:
+                    columns.append({
+                        "column_name":    col_name,
+                        "statement_type": stmt,
+                        "description":    m.get("description", ""),
+                        "aliases":        json.loads(m.get("aliases", "[]")),
+                        "unit":           m.get("unit", "USD"),
+                    })
+                if stmt:
+                    statement_types.append(stmt)
 
-            col_lines.append(
-                f"  {col_name} ({unit})\n"
-                f"    Description : {desc}\n"
-                f"    Aliases     : [{alias_str}]"
-            )
+        # Infer statement_type from what was retrieved
+        inferred_type = self._infer_statement_type(statement_types)
 
-        result = (
-            f"Statement type: {statement_type}\n\n"
-            f"{index_cols_text}\n"
-            f"Relevant financial columns (ranked by relevance to query):\n"
-            + "\n\n".join(col_lines)
-        )
-        self._schema_cache[cache_key] = result
+        # Build schema context string for the LLM
+        schema_context = self._format_schema_context(columns, kpis, inferred_type)
+
+        result = {
+            "statement_type": inferred_type,
+            "schema_context": schema_context,
+            "kpis": kpis,
+        }
+        self._cache[cache_key] = result
         return result
 
+    # ── Keep backward compatibility ──────────────────────────────────────────
+    def get_schema(self, question: str, statement_type: str = None, top_k: int = 10) -> str:
+        """Backward-compatible method. Returns just the schema context string."""
+        result = self.retrieve(question, top_k)
+        return result["schema_context"]
+
+    # ── Private helpers ───────────────────────────────────────────────────────
+
+    def _infer_statement_type(self, statement_types: list[str]) -> str:
+        """Pick the most frequent statement_type from retrieved results."""
+        if not statement_types:
+            return "income_statement"  # safe default
+        counts = Counter(statement_types)
+        # Return the most common one
+        return counts.most_common(1)[0][0]
+
+    def _format_schema_context(self, columns: list[dict], kpis: list[dict], statement_type: str) -> str:
+        """Format columns and KPIs into a readable context string for the LLM."""
+        index_cols = (
+            "Index columns (always available):\n"
+            "  company      (str)  — 'Apple', 'Google', 'Microsoft', 'Nvidia'\n"
+            "  fiscalYear   (str)  — '2021', '2022', '2023', '2024', '2025'\n"
+        )
+
+        col_lines = []
+        for col in columns:
+            aliases = ", ".join(f'"{a}"' for a in col["aliases"][:4])
+            col_lines.append(
+                f"  {col['column_name']} ({col['unit']})\n"
+                f"    {col['description']}\n"
+                f"    Aliases: [{aliases}]"
+            )
+
+        kpi_lines = []
+        for kpi in kpis:
+            kpi_lines.append(
+                f"  {kpi['name']} = {kpi['formula']}\n"
+                f"    {kpi['description']}"
+            )
+
+        parts = [f"Primary statement: {statement_type}\n", index_cols]
+
+        if col_lines:
+            parts.append("\nRelevant columns:\n" + "\n\n".join(col_lines))
+
+        if kpi_lines:
+            parts.append("\nRelevant KPIs (use these formulas):\n" + "\n\n".join(kpi_lines))
+
+        return "\n".join(parts)

@@ -1,18 +1,17 @@
 """
 FinSight Metadata Ingestion
 ────────────────────────────
-Reads the three financial statement metadata JSON files and upserts
-each column's schema entry into Pinecone as a searchable vector.
+Ingests column schema AND KPI definitions into Pinecone.
 
-Each Pinecone record represents ONE column from ONE statement type:
-  - text embedded: "{column_name}: {description}. Aliases: {aliases}"
-  - metadata stored: statement_type, column_name, description, aliases, unit, examples
+Records:
+  - Column records: one per column per statement_type
+  - KPI records: one per derived metric (net margin, ROA, etc.)
+
+Embedded text includes descriptions, aliases, and derived metric hints
+so that semantic search reliably matches user queries to the right columns.
 
 Run:
     python ingest_metadata.py
-
-The metadata namespace is separate from the SEC 10-K namespace so
-there is no interference between document retrieval and schema retrieval.
 """
 
 import json
@@ -36,46 +35,37 @@ METADATA_FILES = {
     "cash_flow":        METADATA_DIR / "cash_flow.json",
 }
 
+KPIS_FILE = METADATA_DIR / "kpis.json"
 
-def build_embed_text(col_name: str, col_meta: dict) -> str:
+
+def build_column_embed_text(col_name: str, col_meta: dict) -> str:
     """
-    Build the text string to embed for a single column.
-    Combines column name, description and aliases so semantic search
-    can match natural-language queries to the right column.
+    Build embed text for a column record.
+    Includes name, description, and all aliases for broad semantic matching.
     """
     aliases = ", ".join(col_meta.get("aliases", []))
     description = col_meta.get("description", "")
     return f"{col_name}: {description} Aliases: {aliases}"
 
 
-def build_pinecone_record(
-    col_name: str,
-    col_meta: dict,
-    statement_type: str,
-    embedding: list[float],
-) -> dict:
-    """Build a Pinecone upsert record for a single column."""
-    return {
-        "id":     f"{statement_type}__{col_name}",
-        "values": embedding,
-        "metadata": {
-            "statement_type": statement_type,
-            "column_name":    col_name,
-            "description":    col_meta.get("description", ""),
-            "aliases":        json.dumps(col_meta.get("aliases", [])),
-            "unit":           col_meta.get("unit", "USD"),
-            "examples":       json.dumps(col_meta.get("examples", [])),
-            "embed_text":     build_embed_text(col_name, col_meta),
-        },
-    }
+def build_kpi_embed_text(kpi_name: str, kpi_meta: dict) -> str:
+    """
+    Build embed text for a KPI record.
+    Includes name, description, formula, and aliases so that
+    questions like "profit margin" or "revenue growth" match correctly.
+    """
+    aliases = ", ".join(kpi_meta.get("aliases", []))
+    description = kpi_meta.get("description", "")
+    formula = kpi_meta.get("formula", "")
+    return f"{kpi_name}: {description} Formula: {formula}. Aliases: {aliases}"
 
 
 def ingest_metadata():
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("FinSight Metadata Ingestion")
     logger.info("Index     : %s", cfg.PINECONE_INDEX)
     logger.info("Namespace : %s", METADATA_NAMESPACE)
-    logger.info("="*60)
+    logger.info("=" * 60)
 
     # Init Pinecone
     pc = Pinecone(api_key=cfg.PINECONE_API_KEY)
@@ -98,6 +88,7 @@ def ingest_metadata():
 
     total_upserted = 0
 
+    # ── Ingest column records ─────────────────────────────────────────────────
     for statement_type, path in METADATA_FILES.items():
         if not path.exists():
             logger.error("Metadata file not found: %s", path)
@@ -109,26 +100,75 @@ def ingest_metadata():
         columns = metadata.get("columns", {})
         logger.info("Processing %s — %d columns", statement_type, len(columns))
 
-        # Build texts to embed
-        texts   = [build_embed_text(col, meta) for col, meta in columns.items()]
-        col_names = list(columns.keys())
+        texts = []
+        records = []
 
-        # Embed all columns for this statement in one batch
+        for col_name, col_meta in columns.items():
+            embed_text = build_column_embed_text(col_name, col_meta)
+            texts.append(embed_text)
+            records.append({
+                "id": f"{statement_type}__{col_name}",
+                "metadata": {
+                    "type":           "column",
+                    "statement_type": statement_type,
+                    "column_name":    col_name,
+                    "description":    col_meta.get("description", ""),
+                    "aliases":        json.dumps(col_meta.get("aliases", [])),
+                    "unit":           col_meta.get("unit", "USD"),
+                    "embed_text":     embed_text,
+                },
+            })
+
+        # Embed all at once
         embeddings = embedder.embed_documents(texts)
-
-        # Build and upsert records
-        records = [
-            build_pinecone_record(col_names[i], columns[col_names[i]], statement_type, embeddings[i])
-            for i in range(len(col_names))
-        ]
+        for i, rec in enumerate(records):
+            rec["values"] = embeddings[i]
 
         index.upsert(vectors=records, namespace=METADATA_NAMESPACE)
         logger.info("  Upserted %d column records for %s", len(records), statement_type)
         total_upserted += len(records)
 
-    logger.info("="*60)
+    # ── Ingest KPI records ────────────────────────────────────────────────────
+    if KPIS_FILE.exists():
+        with open(KPIS_FILE, encoding="utf-8") as f:
+            kpis_data = json.load(f)
+
+        kpis = kpis_data.get("kpis", {})
+        logger.info("Processing KPIs — %d records", len(kpis))
+
+        texts = []
+        records = []
+
+        for kpi_name, kpi_meta in kpis.items():
+            embed_text = build_kpi_embed_text(kpi_name, kpi_meta)
+            texts.append(embed_text)
+            records.append({
+                "id": f"kpi__{kpi_name}",
+                "metadata": {
+                    "type":             "kpi",
+                    "kpi_name":         kpi_name,
+                    "formula":          kpi_meta.get("formula", ""),
+                    "required_columns": json.dumps(kpi_meta.get("required_columns", [])),
+                    "statement_type":   kpi_meta.get("statement_type", ""),
+                    "description":      kpi_meta.get("description", ""),
+                    "aliases":          json.dumps(kpi_meta.get("aliases", [])),
+                    "embed_text":       embed_text,
+                },
+            })
+
+        embeddings = embedder.embed_documents(texts)
+        for i, rec in enumerate(records):
+            rec["values"] = embeddings[i]
+
+        index.upsert(vectors=records, namespace=METADATA_NAMESPACE)
+        logger.info("  Upserted %d KPI records", len(records))
+        total_upserted += len(records)
+    else:
+        logger.warning("KPIs file not found: %s", KPIS_FILE)
+
+    logger.info("=" * 60)
     logger.info("Done. Total records upserted: %d", total_upserted)
-    logger.info("="*60)
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":

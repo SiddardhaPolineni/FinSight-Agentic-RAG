@@ -1,0 +1,89 @@
+{
+  "description": "Derived KPIs computed from base columns across financial statements.",
+  "kpis": {
+    "net_profit_margin": {
+      "description": "Net income as a percentage of revenue. Measures how much profit is retained per dollar of revenue.",
+      "formula": "netIncome / revenue",
+      "required_columns": ["netIncome", "revenue"],
+      "statement_type": "income_statement",
+      "aliases": ["net margin", "profit margin", "net profit margin", "profitability ratio", "return on sales"]
+    },
+    "gross_margin": {
+      "description": "Gross profit as a percentage of revenue. Measures production efficiency.",
+      "formula": "grossProfit / revenue",
+      "required_columns": ["grossProfit", "revenue"],
+      "statement_type": "income_statement",
+      "aliases": ["gross margin", "gross profit margin", "gross profitability"]
+    },
+    "operating_margin": {
+      "description": "Operating income as a percentage of revenue. Measures core operational efficiency.",
+      "formula": "operatingIncome / revenue",
+      "required_columns": ["operatingIncome", "revenue"],
+      "statement_type": "income_statement",
+      "aliases": ["operating margin", "operating profit margin", "ebit margin", "operational efficiency"]
+    },
+    "revenue_growth": {
+      "description": "Year-over-year percentage change in revenue. Measures top-line growth.",
+      "formula": "(revenue_current - revenue_prior) / revenue_prior",
+      "required_columns": ["revenue"],
+      "statement_type": "income_statement",
+      "aliases": ["revenue growth", "sales growth", "top line growth", "revenue growth rate", "revenue cagr"]
+    },
+    "earnings_growth": {
+      "description": "Year-over-year percentage change in net income. Measures bottom-line growth.",
+      "formula": "(netIncome_current - netIncome_prior) / netIncome_prior",
+      "required_columns": ["netIncome"],
+      "statement_type": "income_statement",
+      "aliases": ["earnings growth", "net income growth", "profit growth", "income growth rate"]
+    },
+    "return_on_assets": {
+      "description": "Net income divided by total assets. Measures how efficiently a company uses its assets to generate profit.",
+      "formula": "netIncome / totalAssets",
+      "required_columns": ["netIncome", "totalAssets"],
+      "statement_type": "income_statement,balance_sheet",
+      "aliases": ["roa", "return on assets", "asset efficiency"]
+    },
+    "return_on_equity": {
+      "description": "Net income divided by stockholders equity. Measures return generated for shareholders.",
+      "formula": "netIncome / totalStockholdersEquity",
+      "required_columns": ["netIncome", "totalStockholdersEquity"],
+      "statement_type": "income_statement,balance_sheet",
+      "aliases": ["roe", "return on equity", "shareholder return"]
+    },
+    "debt_to_equity": {
+      "description": "Total debt divided by total stockholders equity. Measures financial leverage.",
+      "formula": "totalDebt / totalStockholdersEquity",
+      "required_columns": ["totalDebt", "totalStockholdersEquity"],
+      "statement_type": "balance_sheet",
+      "aliases": ["debt to equity", "d/e ratio", "leverage ratio", "debt equity ratio", "financial leverage"]
+    },
+    "current_ratio": {
+      "description": "Total current assets divided by total current liabilities. Measures short-term liquidity.",
+      "formula": "totalCurrentAssets / totalCurrentLiabilities",
+      "required_columns": ["totalCurrentAssets", "totalCurrentLiabilities"],
+      "statement_type": "balance_sheet",
+      "aliases": ["current ratio", "liquidity ratio", "working capital ratio"]
+    },
+    "free_cash_flow_margin": {
+      "description": "Free cash flow divided by revenue. Measures cash generation efficiency relative to sales.",
+      "formula": "freeCashFlow / revenue",
+      "required_columns": ["freeCashFlow", "revenue"],
+      "statement_type": "cash_flow,income_statement",
+      "aliases": ["fcf margin", "free cash flow margin", "cash flow margin", "cash conversion"]
+    },
+    "capex_to_revenue": {
+      "description": "Capital expenditure as a percentage of revenue. Measures reinvestment intensity.",
+      "formula": "abs(capitalExpenditure) / revenue",
+      "required_columns": ["capitalExpenditure", "revenue"],
+      "statement_type": "cash_flow,income_statement",
+      "aliases": ["capex to revenue", "capex ratio", "reinvestment rate", "capital intensity"]
+    },
+    "ebitda_margin": {
+      "description": "EBITDA divided by revenue. Measures operating profitability before non-cash charges.",
+      "formula": "ebitda / revenue",
+      "required_columns": ["ebitda", "revenue"],
+      "statement_type": "income_statement",
+      "aliases": ["ebitda margin", "ebitda profitability"]
+    }
+  }
+}

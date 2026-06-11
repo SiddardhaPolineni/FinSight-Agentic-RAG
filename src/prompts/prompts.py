@@ -13,29 +13,22 @@ ANALYZE_PROMPT = ChatPromptTemplate.from_messages([
   "intent": "<csv_query|sec_rag|chart|hybrid>",
   "companies": ["apple|google|microsoft|nvidia"],
   "years": ["2021-2025 as strings"],
-  "metrics": ["metric names"],
-  "statement_type": "<income_statement|balance_sheet|cash_flow>",
+  "metrics": ["metric names mentioned in the question"],
   "chart_type": "<bar|line|pie|null>"
 }}
 
 Intent:
-- csv_query  → financial figures from statements
-- sec_rag    → strategy, risks, MD&A from 10-K
-- chart      → user wants a plot/chart
+- csv_query  → financial figures, ratios, margins, KPIs from statements
+- sec_rag    → strategy, risks, MD&A, qualitative info from 10-K
+- chart      → user wants a plot/chart/visualization
 - hybrid     → needs both figures AND 10-K narrative
-
-statement_type — infer from metric, NEVER omit:
-- income_statement  → revenue, net income, gross profit, operating income, EBITDA, EPS, margins, R&D
-- balance_sheet     → assets, liabilities, equity, debt, cash, goodwill, working capital
-- cash_flow         → free cash flow, operating cash, capex, investing, financing
 
 Tickers: AAPL→apple, NVDA→nvidia, MSFT→microsoft, GOOG/GOOGL/Alphabet→google
 
 IMPORTANT for years:
-- Only include years the user EXPLICITLY mentions (e.g. "in 2024", "from 2022 to 2025")
-- If the user does NOT specify a year, return an EMPTY years array []
-- Do NOT infer or guess years from chat history
-- Queries like "all years", "trend", "over the years" → return []
+- Only include years the user EXPLICITLY mentions
+- If no year specified, return empty []
+- "all years", "trend", "over the years" → return []
 
 History:
 {history}"""),

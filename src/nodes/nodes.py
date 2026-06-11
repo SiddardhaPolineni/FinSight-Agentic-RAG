@@ -12,7 +12,6 @@ Node execution order:
                                 synthesizer_node (hybrid)
 """
 
-import asyncio
 import json
 import logging
 
@@ -31,7 +30,7 @@ from src.prompts import (
     SYNTHESIZER_PROMPT,
 )
 from src.schemas import FinSightState
-from src.utils import load_dataframes, sanitize_statement_type
+from src.utils import load_dataframes
 from src.retriever import HybridRetriever, SchemaRetriever
 
 logger = logging.getLogger(__name__)
@@ -91,7 +90,6 @@ def analyze_node(state: FinSightState) -> dict:
         companies      = [c.lower() for c in parsed.get("companies", [])]
         years          = [str(y) for y in parsed.get("years", [])]
         metrics        = parsed.get("metrics", [])
-        statement_type = sanitize_statement_type(parsed.get("statement_type"))
         chart_type     = parsed.get("chart_type") or None
         if chart_type in ("null", "none", "", "None"):
             chart_type = None
@@ -100,8 +98,8 @@ def analyze_node(state: FinSightState) -> dict:
             intent = "sec_rag"
 
         logger.info(
-            "Analyze: rephrased='%s' | intent=%s | companies=%s | years=%s | statement=%s",
-            rephrased[:60], intent, companies, years, statement_type,
+            "Analyze: rephrased='%s' | intent=%s | companies=%s | years=%s",
+            rephrased[:60], intent, companies, years,
         )
         return {
             "rephrased_query": rephrased,
@@ -109,7 +107,6 @@ def analyze_node(state: FinSightState) -> dict:
             "companies":       companies,
             "years":           years,
             "metrics":         metrics,
-            "statement_type":  statement_type,
             "chart_type":      chart_type,
         }
     except Exception as e:
@@ -120,7 +117,6 @@ def analyze_node(state: FinSightState) -> dict:
             "companies":       [],
             "years":           [],
             "metrics":         [],
-            "statement_type":  None,
             "chart_type":      None,
             "error":           str(e),
         }
@@ -135,49 +131,18 @@ def csv_node(state: FinSightState) -> dict:
     rather than proceeding with incomplete information.
 
     Optimisations:
-    - schema fetch (Pinecone+embed) and DataFrame load run concurrently
-    - pandas-expr LLM call fires as soon as schema is ready
-    - CSV_ANALYST_PROMPT uses llm_fast (512 max_tokens) — just a formatter
+    - Schema retrieval determines statement_type from Pinecone results
+    - DataFrame load and schema fetch run concurrently
+    - Single LLM call returns both pandas expr and answer template
     """
     question       = state.get("rephrased_query") or state["question"]
     companies      = state.get("companies") or []
     years          = state.get("years") or None
-    statement_type = sanitize_statement_type(state.get("statement_type"))
 
-    # Gate 1 — must know which statement type
-    if not statement_type:
-        # Try to infer from question/metrics before failing
-        metrics_str = " ".join(state.get("metrics") or []).lower()
-        q_lower     = (state.get("rephrased_query") or state["question"]).lower()
-        combined    = metrics_str + " " + q_lower
-        if any(kw in combined for kw in [
-            "revenue", "net income", "gross profit", "operating income", "ebitda",
-            "eps", "earnings per share", "cost of revenue", "r&d", "operating margin",
-            "net margin", "profit margin",
-        ]):
-            statement_type = "income_statement"
-        elif any(kw in combined for kw in [
-            "free cash flow", "fcf", "operating cash", "capex", "capital expenditure",
-            "cash from operations", "investing", "financing",
-        ]):
-            statement_type = "cash_flow"
-        elif any(kw in combined for kw in [
-            "total assets", "liabilities", "equity", "debt", "cash and cash equivalents",
-            "goodwill", "working capital", "debt-to-equity",
-        ]):
-            statement_type = "balance_sheet"
-
-    if not statement_type:
-        return {
-            "csv_result": None,
-            "answer": "I couldn't determine which financial statement to query. Could you clarify — are you asking about the income statement, balance sheet, or cash flow?",
-        }
-
-    # Gate 2 — must have at least one supported company
+    # Gate 1 — must have at least one supported company
     supported = set(cfg.SUPPORTED_COMPANIES)
     valid_companies = [c for c in companies if c.lower() in supported]
     if not valid_companies:
-        # If the question implies a comparison across all companies, use all
         q_lower = question.lower()
         is_all_companies_query = any(kw in q_lower for kw in [
             "which company", "all companies", "each company", "every company",
@@ -193,11 +158,7 @@ def csv_node(state: FinSightState) -> dict:
                 "answer": f"I only have financial data for {available}. Please ask about one of these companies.",
             }
 
-    logger.info("CSV node — companies=%s, years=%s, statement=%s", valid_companies, years, statement_type)
-
-    # Gate 3 — for specific metric queries, require a year
-    # If user asks about a trend/comparison ("over the years", "from X to Y"), empty years is fine.
-    # But for single-point questions ("What was X's revenue?"), ask which year.
+    # Gate 2 — for single-point queries, require a year
     if not years:
         q_lower = question.lower()
         is_trend_query = any(kw in q_lower for kw in [
@@ -214,37 +175,22 @@ def csv_node(state: FinSightState) -> dict:
             }
 
     try:
-        # Step 1 — load DataFrame and fetch schema concurrently
-        # DataFrame loading is CPU/IO bound; schema fetch is network bound.
-        # Run them in parallel with asyncio so neither blocks the other.
-        async def _fetch_schema():
-            return schema_retriever.get_schema(
-                question=question,
-                statement_type=statement_type,
-                top_k=10,
-            )
+        # Step 1 — Retrieve schema from Pinecone (infers statement_type from results)
+        schema_result  = schema_retriever.retrieve(question)
+        statement_type = schema_result["statement_type"]
+        schema_ctx     = schema_result["schema_context"]
 
-        async def _parallel():
-            return await asyncio.gather(
-                asyncio.to_thread(load_dataframes, valid_companies, statement_type, years),
-                _fetch_schema(),
-            )
+        if not statement_type:
+            return {
+                "csv_result": None,
+                "answer": "I couldn't determine which financial statement to query. Could you clarify — are you asking about the income statement, balance sheet, or cash flow?",
+            }
 
-        try:
-            loop = asyncio.get_running_loop()
-            # We're inside an async context (FastAPI) — use a thread
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                df_future     = pool.submit(load_dataframes, valid_companies, statement_type, years)
-                schema_future = pool.submit(schema_retriever.get_schema, question, statement_type, 10)
-                df         = df_future.result()
-                schema_ctx = schema_future.result()
-        except RuntimeError:
-            # No running loop — plain synchronous path
-            df         = load_dataframes(valid_companies, statement_type, years)
-            schema_ctx = schema_retriever.get_schema(question, statement_type, 10)
+        logger.info("CSV node — companies=%s, years=%s, statement=%s", valid_companies, years, statement_type)
 
-        # Gate 3 — DataFrame must have rows
+        # Step 2 — Load DataFrame
+        df = load_dataframes(companies=valid_companies, statement_type=statement_type, years=years)
+
         if df.empty:
             year_str    = f" for {', '.join(years)}" if years else ""
             company_str = ", ".join(c.title() for c in valid_companies)
@@ -392,55 +338,25 @@ def chart_node(state: FinSightState) -> dict:
     """Build a Plotly chart from CSV data using LLM-specified axes."""
     import plotly.express as px
 
-    question       = state.get("rephrased_query") or state["question"]
-    companies      = state.get("companies") or cfg.SUPPORTED_COMPANIES
-    years          = state.get("years") or None
-    statement_type = sanitize_statement_type(state.get("statement_type"))
-
-    # ── Infer statement_type from metrics when the LLM didn't set it ──────────
-    if not statement_type:
-        metrics_str = " ".join(state.get("metrics") or []).lower()
-        q_lower     = question.lower()
-        combined    = metrics_str + " " + q_lower
-        if any(kw in combined for kw in [
-            "revenue", "net income", "gross profit", "operating income", "ebitda",
-            "eps", "earnings per share", "cost of revenue", "r&d", "operating margin",
-            "net margin", "profit margin",
-        ]):
-            statement_type = "income_statement"
-        elif any(kw in combined for kw in [
-            "free cash flow", "fcf", "operating cash", "capex", "capital expenditure",
-            "cash from operations", "investing", "financing",
-        ]):
-            statement_type = "cash_flow"
-        elif any(kw in combined for kw in [
-            "total assets", "liabilities", "equity", "debt", "cash and cash equivalents",
-            "goodwill", "working capital", "debt-to-equity", "balance sheet",
-        ]):
-            statement_type = "balance_sheet"
-
-    if not statement_type:
-        return {
-            "chart_spec": None,
-            "answer": "I couldn't determine which financial statement to use for this chart. Could you clarify — are you asking about the income statement, balance sheet, or cash flow?",
-        }
-
+    question   = state.get("rephrased_query") or state["question"]
+    companies  = state.get("companies") or cfg.SUPPORTED_COMPANIES
+    years      = state.get("years") or None
     chart_type = state.get("chart_type") or "bar"
 
     try:
-        # Step 1 — load DataFrame and fetch schema concurrently
-        try:
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                df_future     = pool.submit(load_dataframes, companies, statement_type, years)
-                schema_future = pool.submit(schema_retriever.get_schema, question, statement_type, 10)
-                df         = df_future.result()
-                schema_ctx = schema_future.result()
-        except Exception:
-            df         = load_dataframes(companies=companies, statement_type=statement_type, years=years)
-            schema_ctx = schema_retriever.get_schema(question=question, statement_type=statement_type, top_k=10)
+        # Step 1 — Retrieve schema (infers statement_type from results)
+        schema_result  = schema_retriever.retrieve(question)
+        statement_type = schema_result["statement_type"]
+        schema_ctx     = schema_result["schema_context"]
 
-        # Step 2 — ask LLM for chart spec (schema already ready)
+        if not statement_type:
+            return {
+                "chart_spec": None,
+                "answer": "I couldn't determine which financial statement to use for this chart. Could you clarify — are you asking about the income statement, balance sheet, or cash flow?",
+            }
+
+        # Step 2 — Load DataFrame
+        df = load_dataframes(companies=companies, statement_type=statement_type, years=years)
         resp = (CHART_QUERY_PROMPT | llm).invoke({"column_context": schema_ctx, "question": question})
         raw        = resp.content.strip().strip("```json").strip("```").strip()
         spec       = json.loads(raw)
