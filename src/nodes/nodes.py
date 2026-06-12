@@ -195,9 +195,10 @@ def csv_node(state: FinSightState) -> dict:
 
         logger.info("DataFrame: %d rows | fiscalYears: %s", len(df), df["fiscalYear"].unique().tolist())
 
-        # Step 2 — LLM writes pandas expression + answer template in one call
+        # Step 2 — LLM writes pandas expression + answer template
         resp = (PANDAS_QUERY_PROMPT | llm).invoke({"column_context": schema_ctx, "question": question})
         raw_resp = resp.content.strip().strip("```json").strip("```").strip()
+        
         try:
             llm_output = json.loads(raw_resp)
             pandas_expr     = llm_output["expr"]
@@ -210,7 +211,7 @@ def csv_node(state: FinSightState) -> dict:
         logger.info("Pandas expression: %s", pandas_expr)
 
         # Step 3 — execute
-        result = eval(pandas_expr, {"df": df, "pd": pd})  # noqa: S307
+        result = eval(pandas_expr, {"df": df, "pd": pd})
 
         # Gate 4 — result must have actual data
         if result is None:
@@ -224,7 +225,7 @@ def csv_node(state: FinSightState) -> dict:
         if result_str in ("", "nan", "None", "NaN"):
             return {
                 "csv_result": None,
-                "answer": "The requested data is not available (reported as null in the source data).",
+                "answer": "The requested data is not available.",
             }
 
         logger.info("Result: %s", result_str[:300])

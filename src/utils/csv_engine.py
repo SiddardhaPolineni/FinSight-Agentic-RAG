@@ -2,8 +2,7 @@
 FinSight CSV Engine
 ────────────────────
 Loads financial CSVs into a single combined DataFrame.
-All CSVs share the same structure: a 'date' column holding the fiscal
-year-end date, from which we derive a 4-digit 'fiscalYear' column.
+Uses the existing 'fiscalYear' column from the CSV files directly.
 """
 
 import logging
@@ -68,14 +67,7 @@ def load_dataframes(
 
         df = pd.read_csv(path, encoding="utf-8-sig")
 
-        # Derive fiscal year from the date column
-        df["fiscalYear"] = (
-            pd.to_datetime(df["date"], errors="coerce")
-            .dt.year
-            .astype("Int64")
-            .astype(str)
-            .replace("<NA>", "")
-        )
+        df["fiscalYear"] = df["fiscalYear"].astype(str).str.strip()
         df["company"] = company.title()
 
         if years:
