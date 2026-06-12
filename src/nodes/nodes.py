@@ -44,9 +44,16 @@ llm = ChatOpenAI(
     openai_api_key=cfg.OPENAI_API_KEY,
 )
 
-# Lightweight LLM for short formatting tasks (analyst narrator, chart describer)
-# Capped at 512 tokens — these calls only produce 1–4 sentence summaries
+# Fast LLM — reduced max_tokens for short outputs (intent classification, formatting)
 llm_fast = ChatOpenAI(
+    model=cfg.LLM_MODEL,
+    temperature=0.0,
+    max_tokens=256,
+    openai_api_key=cfg.OPENAI_API_KEY,
+)
+
+# Mid LLM — for structured JSON outputs (pandas expr, chart spec)
+llm_mid = ChatOpenAI(
     model=cfg.LLM_MODEL,
     temperature=0.0,
     max_tokens=512,
@@ -74,51 +81,64 @@ def analyze_node(state: FinSightState) -> dict:
     """
     Single LLM call that rewrites the question for retrieval AND
     classifies intent + extracts entities simultaneously.
+    Also pre-fetches schema from Pinecone concurrently.
     """
+    import concurrent.futures
+
     history_text = _history_text(state.get("messages", []))
-    try:
-        resp = (ANALYZE_PROMPT | llm).invoke({
-            "question": state["question"],
-            "history":  history_text,
-        })
-        raw    = resp.content.strip().strip("```json").strip("```").strip()
-        parsed = json.loads(raw)
+    question = state["question"]
 
-        rephrased      = parsed.get("rephrased_query") or state["question"]
-        intent         = parsed.get("intent", "sec_rag")
-        companies      = [c.lower() for c in parsed.get("companies", [])]
-        years          = [str(y) for y in parsed.get("years", [])]
-        metrics        = parsed.get("metrics", [])
-        chart_type     = parsed.get("chart_type") or None
-        if chart_type in ("null", "none", "", "None"):
-            chart_type = None
-
-        if intent not in {"csv_query", "sec_rag", "chart", "hybrid"}:
-            intent = "sec_rag"
-
-        logger.info(
-            "Analyze: rephrased='%s' | intent=%s | companies=%s | years=%s",
-            rephrased[:60], intent, companies, years,
+    # Run LLM classification AND schema retrieval in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        llm_future = pool.submit(
+            (ANALYZE_PROMPT | llm_fast).invoke,
+            {"question": question, "history": history_text}
         )
-        return {
-            "rephrased_query": rephrased,
-            "intent":          intent,
-            "companies":       companies,
-            "years":           years,
-            "metrics":         metrics,
-            "chart_type":      chart_type,
-        }
-    except Exception as e:
-        logger.error("Analyze node failed: %s", e)
-        return {
-            "rephrased_query": state["question"],
-            "intent":          "sec_rag",
-            "companies":       [],
-            "years":           [],
-            "metrics":         [],
-            "chart_type":      None,
-            "error":           str(e),
-        }
+        schema_future = pool.submit(schema_retriever.retrieve, question)
+
+        try:
+            resp = llm_future.result()
+            raw    = resp.content.strip().strip("```json").strip("```").strip()
+            parsed = json.loads(raw)
+
+            rephrased  = parsed.get("rephrased_query") or question
+            intent     = parsed.get("intent", "sec_rag")
+            companies  = [c.lower() for c in parsed.get("companies", [])]
+            years      = [str(y) for y in parsed.get("years", [])]
+            metrics    = parsed.get("metrics", [])
+            chart_type = parsed.get("chart_type") or None
+            if chart_type in ("null", "none", "", "None"):
+                chart_type = None
+            if intent not in {"csv_query", "sec_rag", "chart", "hybrid"}:
+                intent = "sec_rag"
+        except Exception as e:
+            logger.error("Analyze node LLM failed: %s", e)
+            return {
+                "rephrased_query": question,
+                "intent": "sec_rag",
+                "companies": [], "years": [], "metrics": [],
+                "chart_type": None, "error": str(e),
+            }
+
+        # Get pre-fetched schema result (already done or nearly done)
+        try:
+            schema_result = schema_future.result()
+        except Exception:
+            schema_result = None
+
+    logger.info(
+        "Analyze: rephrased='%s' | intent=%s | companies=%s | years=%s",
+        rephrased[:60], intent, companies, years,
+    )
+    return {
+        "rephrased_query":    rephrased,
+        "intent":             intent,
+        "companies":          companies,
+        "years":              years,
+        "metrics":            metrics,
+        "chart_type":         chart_type,
+        "_schema_result":     schema_result,  # pre-fetched for downstream nodes
+    }
 
 
 # ── Node 3: CSV query ─────────────────────────────────────────────────────────
@@ -169,8 +189,11 @@ def csv_node(state: FinSightState) -> dict:
             }
 
     try:
-        # Step 1 — Retrieve schema from Pinecone (infers statement_type from results)
-        schema_result  = schema_retriever.retrieve(question)
+        # Step 1 — Use pre-fetched schema from analyze_node, or fetch fresh
+        schema_result = state.get("_schema_result")
+        if not schema_result:
+            schema_result = schema_retriever.retrieve(question)
+
         statement_type = schema_result["statement_type"]
         schema_ctx     = schema_result["schema_context"]
 
@@ -196,7 +219,7 @@ def csv_node(state: FinSightState) -> dict:
         logger.info("DataFrame: %d rows | fiscalYears: %s", len(df), df["fiscalYear"].unique().tolist())
 
         # Step 2 — LLM writes pandas expression + answer template
-        resp = (PANDAS_QUERY_PROMPT | llm).invoke({"column_context": schema_ctx, "question": question})
+        resp = (PANDAS_QUERY_PROMPT | llm_mid).invoke({"column_context": schema_ctx, "question": question})
         raw_resp = resp.content.strip().strip("```json").strip("```").strip()
         
         try:
@@ -339,8 +362,11 @@ def chart_node(state: FinSightState) -> dict:
     chart_type = state.get("chart_type") or "bar"
 
     try:
-        # Step 1 — Retrieve schema (infers statement_type from results)
-        schema_result  = schema_retriever.retrieve(question)
+        # Step 1 — Use pre-fetched schema from analyze_node, or fetch fresh
+        schema_result = state.get("_schema_result")
+        if not schema_result:
+            schema_result = schema_retriever.retrieve(question)
+
         statement_type = schema_result["statement_type"]
         schema_ctx     = schema_result["schema_context"]
 
@@ -352,7 +378,7 @@ def chart_node(state: FinSightState) -> dict:
 
         # Step 2 — Load DataFrame
         df = load_dataframes(companies=companies, statement_type=statement_type, years=years)
-        resp = (CHART_QUERY_PROMPT | llm).invoke({"column_context": schema_ctx, "question": question})
+        resp = (CHART_QUERY_PROMPT | llm_mid).invoke({"column_context": schema_ctx, "question": question})
         raw        = resp.content.strip().strip("```json").strip("```").strip()
         spec       = json.loads(raw)
 

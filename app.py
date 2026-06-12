@@ -71,10 +71,31 @@ st.markdown("""
 .thinking-box .dots span:nth-child(3) { animation-delay: 0.3s; }
 .thinking-box .msg { color: #6b7280; font-style: italic; font-size: 0.9rem; }
 
-/* Ensure chat input is visible */
+/* Chat input — clean single box, no inner highlight */
 [data-testid="stChatInput"] {
-    background-color: #ffffff;
-    border-top: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+}
+[data-testid="stChatInput"] textarea,
+[data-testid="stChatInput"] textarea:focus,
+[data-testid="stChatInput"] textarea:active,
+[data-testid="stChatInput"] > div,
+[data-testid="stChatInput"] > div:focus-within {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    background: transparent !important;
+}
+/* Color the send/submit button */
+[data-testid="stChatInput"] button {
+    background-color: #059669 !important;
+    color: #ffffff !important;
+    border-radius: 6px !important;
+    border: none !important;
+}
+[data-testid="stChatInput"] button:hover {
+    background-color: #047857 !important;
 }
 
 /* Push main content to top */

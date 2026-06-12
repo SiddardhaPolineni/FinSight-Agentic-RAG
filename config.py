@@ -18,7 +18,7 @@ SRC_DIR    = ROOT_DIR / "src"
 OPENAI_API_KEY   : str   = os.environ["OPENAI_API_KEY"]
 LLM_MODEL        : str   = "gpt-4o-mini"
 LLM_TEMPERATURE  : float = 0.0
-LLM_MAX_TOKENS   : int   = 2048
+LLM_MAX_TOKENS   : int   = 1024
 EMBEDDING_MODEL  : str   = "text-embedding-3-small"
 EMBEDDING_DIM    : int   = 1536
 
