@@ -179,7 +179,6 @@ with st.sidebar:
         "What was Nvidia's revenue in 2024?",
         "Compare Apple and Microsoft net income for 2024",
         "What are Google's key risk factors in its 2024 10-K?",
-        "Plot Nvidia's free cash flow from 2021 to 2025",
         "Show a bar chart of revenue for all companies in 2024",
         "What did Microsoft say about AI strategy in 2024?",
     ]
