@@ -80,6 +80,7 @@ class SchemaRetriever:
         columns = []
         kpis = []
         statement_types = []
+        top_statement_type = None  # from the highest-ranked result
 
         for match in results.matches:
             m = match.metadata
@@ -93,11 +94,12 @@ class SchemaRetriever:
                     "statement_type":   m.get("statement_type", ""),
                     "description":      m.get("description", ""),
                 })
-                # KPIs can span multiple statement types
                 for st in m.get("statement_type", "").split(","):
                     st = st.strip()
                     if st:
                         statement_types.append(st)
+                        if top_statement_type is None:
+                            top_statement_type = st
             else:
                 col_name = m.get("column_name", "")
                 stmt     = m.get("statement_type", "")
@@ -111,12 +113,20 @@ class SchemaRetriever:
                     })
                 if stmt:
                     statement_types.append(stmt)
+                    if top_statement_type is None:
+                        top_statement_type = stmt
 
-        # Infer statement_type from what was retrieved
-        inferred_type = self._infer_statement_type(statement_types)
+        # Use the top-ranked result's statement_type (most semantically relevant)
+        inferred_type = top_statement_type or self._infer_statement_type(statement_types)
+
+        # Filter columns to only those from the inferred statement type
+        relevant_columns = [c for c in columns if c["statement_type"] == inferred_type]
+        # If no columns match (e.g. only KPIs returned), keep all
+        if not relevant_columns:
+            relevant_columns = columns
 
         # Build schema context string for the LLM
-        schema_context = self._format_schema_context(columns, kpis, inferred_type)
+        schema_context = self._format_schema_context(relevant_columns, kpis, inferred_type)
 
         result = {
             "statement_type": inferred_type,
