@@ -184,12 +184,12 @@ with st.sidebar:
         "What did Microsoft say about AI strategy in 2024?",
     ]
     for ex in examples:
-        if st.button(ex, use_container_width=True, key=f"ex_{ex[:30]}"):
+        if st.button(ex, width='stretch', key=f"ex_{ex[:30]}"):
             st.session_state["prefill"] = ex
 
     st.divider()
 
-    if st.button("🗑️ Clear chat", use_container_width=True):
+    if st.button("🗑️ Clear chat", width='stretch'):
         st.session_state.chat_history = []
         try:
             httpx.delete(f"{API_BASE}/history/{st.session_state.session_id}", timeout=5)
@@ -228,7 +228,7 @@ if not st.session_state.chat_history:
     ]
     for q, col in quick_questions:
         with col:
-            if st.button(q, use_container_width=True, key=f"main_{q[:25]}"):
+            if st.button(q, width='stretch', key=f"main_{q[:25]}"):
                 st.session_state["prefill"] = q
                 st.rerun()
 
@@ -243,7 +243,7 @@ for msg in st.session_state.chat_history:
         if msg.get("chart_spec"):
             st.plotly_chart(
                 go.Figure(msg["chart_spec"]),
-                use_container_width=True,
+                width='stretch',
                 key=f"hist_{id(msg)}",
             )
 
@@ -335,7 +335,7 @@ if user_input:
             answer_box.markdown(_esc(full_answer))
             if chart_spec:
                 with chart_box:
-                    st.plotly_chart(go.Figure(chart_spec), use_container_width=True, key=f"c_{uuid.uuid4()}")
+                    st.plotly_chart(go.Figure(chart_spec), width='stretch', key=f"c_{uuid.uuid4()}")
 
         except httpx.ConnectError:
             full_answer = "⚠️ Cannot connect to FinSight API. Start the backend with: `uvicorn api:app --reload --port 8000`"
