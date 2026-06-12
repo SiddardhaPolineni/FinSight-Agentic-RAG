@@ -74,7 +74,6 @@ def analyze_node(state: FinSightState) -> dict:
     """
     Single LLM call that rewrites the question for retrieval AND
     classifies intent + extracts entities simultaneously.
-    Replaces the previous two-node rephrase → intent chain.
     """
     history_text = _history_text(state.get("messages", []))
     try:
@@ -126,20 +125,15 @@ def analyze_node(state: FinSightState) -> dict:
 
 def csv_node(state: FinSightState) -> dict:
     """
-    Strictly data-first: every check gates the next step.
+    Strictly data-first: every step validates and route to next step.
     Returns a clear "no data" message at the first missing piece
     rather than proceeding with incomplete information.
-
-    Optimisations:
-    - Schema retrieval determines statement_type from Pinecone results
-    - DataFrame load and schema fetch run concurrently
-    - Single LLM call returns both pandas expr and answer template
     """
     question       = state.get("rephrased_query") or state["question"]
     companies      = state.get("companies") or []
     years          = state.get("years") or None
 
-    # Gate 1 — must have at least one supported company
+    # validation 1 — must have at least one supported company
     supported = set(cfg.SUPPORTED_COMPANIES)
     valid_companies = [c for c in companies if c.lower() in supported]
     if not valid_companies:
@@ -158,7 +152,7 @@ def csv_node(state: FinSightState) -> dict:
                 "answer": f"I only have financial data for {available}. Please ask about one of these companies.",
             }
 
-    # Gate 2 — for single-point queries, require a year
+    # validation 2 — for single-point queries, require a year
     if not years:
         q_lower = question.lower()
         is_trend_query = any(kw in q_lower for kw in [
@@ -183,7 +177,7 @@ def csv_node(state: FinSightState) -> dict:
         if not statement_type:
             return {
                 "csv_result": None,
-                "answer": "I couldn't determine which financial statement to query. Could you clarify — are you asking about the income statement, balance sheet, or cash flow?",
+                "answer": "I couldn't find the requested information. Please rephrase your query and try again.",
             }
 
         logger.info("CSV node — companies=%s, years=%s, statement=%s", valid_companies, years, statement_type)

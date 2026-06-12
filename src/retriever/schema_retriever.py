@@ -43,7 +43,7 @@ class SchemaRetriever:
 
         Args:
             question: the user's financial question
-            top_k:    number of records to retrieve from Pinecone
+            top_k: number of records to retrieve from Pinecone
 
         Returns:
             {
@@ -58,7 +58,7 @@ class SchemaRetriever:
 
         query_vector = self._embedder.embed_query(question)
 
-        # Search across ALL statement types — no filter
+        # Search across ALL statement types
         results = self._index.query(
             vector=query_vector,
             top_k=top_k,
@@ -142,7 +142,6 @@ class SchemaRetriever:
         result = self.retrieve(question, top_k)
         return result["schema_context"]
 
-    # ── Private helpers ───────────────────────────────────────────────────────
 
     def _infer_statement_type(self, statement_types: list[str]) -> str:
         """Pick the most frequent statement_type from retrieved results."""
