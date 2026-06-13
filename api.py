@@ -100,8 +100,8 @@ def _build_sources(final_state: dict) -> list[SourceDoc]:
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="FinSight Financial Research Assistant",
-    description="Agentic RAG over SEC 10-K filings and financial CSV data.",
+    title="FinSight AI Financial Research Assistant",
+    description="Agentic RAG over SEC 10-K filings and structured financial data.",
     version="1.0.0",
     docs_url="/docs",
 )
