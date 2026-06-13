@@ -291,8 +291,10 @@ def csv_node(state: FinSightState) -> dict:
             formatted_result = _format_value(result_str)
             # Avoid double dollar signs: if template already has $ before {result}
             if "${result}" in answer_template or "$ {result}" in answer_template:
-                # Template has a dollar sign — don't add another in formatted_result
                 formatted_result = formatted_result.lstrip("$")
+            # Avoid double percent: if template already has % after {result}
+            if "{result}%" in answer_template or "{result} %" in answer_template:
+                formatted_result = formatted_result.rstrip("%")
             answer = answer_template.replace("{result}", formatted_result)
 
         return {

@@ -109,6 +109,19 @@ footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
+# Auto-scroll to bottom when new messages appear
+st.markdown("""
+<script>
+    window.addEventListener('load', function() {
+        const observer = new MutationObserver(function() {
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+        observer.observe(document.body, {childList: true, subtree: true});
+        window.scrollTo(0, document.body.scrollHeight);
+    });
+</script>
+""", unsafe_allow_html=True)
+
 THINKING_MESSAGES = [
     "Searching financial records",
     "Analyzing statements",
